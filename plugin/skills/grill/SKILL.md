@@ -1,6 +1,7 @@
 ---
 name: grill
 description: Interview the person about a plan or a design with a batch of questions, each with fixed options, for grilling-pane to lay out in a pane. Use it to stress-test a plan before you start it, or when the person says "grill".
+license: MIT
 ---
 
 1. Invoke the `grilling` skill from mattpocock/skills. Follow all of it:
