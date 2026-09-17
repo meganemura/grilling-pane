@@ -22,10 +22,9 @@ dependency.
 
 ## Visibility
 
-The repository is private today. The layer is public-possible: commit
-messages, comments, README and docs are in English. Follow ASD-STE100
-Simplified Technical English. Test fixtures use invented plans and
-questions, never a real project's.
+The repository is public. Commit messages, comments, README and docs are
+in English. Follow ASD-STE100 Simplified Technical English. Test fixtures
+use invented plans and questions, never a real project's.
 
 ## Rules
 
