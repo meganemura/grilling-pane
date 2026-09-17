@@ -1,0 +1,4 @@
+{
+  "description": "One function-hooks module: grilling-pane, the pane beside the transcript that shows every unanswered question from a ```grilling block and submits every pick as one prompt.",
+  "modules": ["./mod.ts"]
+}
