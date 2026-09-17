@@ -3,9 +3,10 @@
 [![test](https://github.com/meganemura/grilling-pane/actions/workflows/test.yml/badge.svg)](https://github.com/meganemura/grilling-pane/actions/workflows/test.yml)
 
 A Claude Code plugin (a Claude Mod) that interviews the person about a plan before Claude acts
-on it. The `grill` skill runs Matt Pocock's `grilling` method. It writes each round of questions
-in a block, and grilling-pane draws that block in a pane beside the transcript. One Submit sends
-the person's answers to the whole round, in one turn.
+on it. The plugin's skill, `grilling-pane:grilling`, invokes Matt Pocock's `grilling` skill for
+the method. It writes each round of questions in a block, and grilling-pane draws that block in
+a pane beside the transcript. One Submit sends the person's answers to the whole round, in one
+turn.
 
 ## What it looks like
 
@@ -30,7 +31,7 @@ invalidates exactly one entry
 ## Requirements
 
 - Claude Code 2.1.273 or later, with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`
-- The `grilling` skill from mattpocock/skills, v1.2.0 or later:
+- The upstream `grilling` skill from mattpocock/skills, v1.2.0 or later:
   `gh skill install mattpocock/skills grilling --agent claude-code`
 
 ## Install
@@ -59,7 +60,7 @@ To set `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` for each session, add it to the `en
 
 ## Use
 
-Start with `/grilling-pane:grill <plan>`. Type `/grilling-pane` to show or hide the pane.
+Start with `/grilling-pane:grilling <plan>`. Type `/grilling-pane` to show or hide the pane.
 `/grilling-pane` also gives the pane keyboard focus. The arrow keys move between buttons. Enter
 presses the focused button. Esc returns focus to the prompt box. A mouse click also presses a
 button. Press an option's button to choose it; press the same button again to clear the choice
@@ -70,7 +71,7 @@ keyboard. Hide it with `/grilling-pane` to stop that.
 
 ## The question block
 
-The skill writes each round inside a fenced block labeled `grilling`:
+The plugin's skill writes each round inside a fenced block labeled `grilling`:
 
 ```grilling
 Q13: Is the loan cache per user, or one for the whole library?
@@ -116,9 +117,9 @@ test plugin`.
 
 ## Credits
 
-The interview method is the `grilling` skill by Matt Pocock
-(<https://github.com/mattpocock/skills>, MIT). grilling-pane adds the question block format and
-the pane, and calls `grilling` for the method itself.
+The interview method is Matt Pocock's `grilling` skill
+(<https://github.com/mattpocock/skills>, MIT). The plugin's own skill, `grilling-pane:grilling`,
+adds the question block format and the pane, and invokes the upstream skill for the method.
 
 ## License
 

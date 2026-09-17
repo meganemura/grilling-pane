@@ -4,10 +4,11 @@ Context for agents that work in this repository.
 
 ## What this is
 
-grilling-pane, a Claude Code plugin with two parts. A skill invokes Matt
-Pocock's `grilling` skill from mattpocock/skills to interview the person
-about a plan. It sets one part of `grilling`'s method: each round's
-questions go in a block, with fixed options, that the pane can read. A
+grilling-pane, a Claude Code plugin with two parts. Its skill,
+`grilling-pane:grilling`, invokes Matt Pocock's `grilling` skill from
+mattpocock/skills to interview the person about a plan. It sets one part
+of the upstream skill's method: each round's questions go in a block,
+with fixed options, that the pane can read. A
 hooks module (a "Claude Mod") reads that block from the transcript. It
 draws every open question in a pane beside the transcript, as a radio made
 of one button per option. It submits all answers as one prompt. A
@@ -60,5 +61,5 @@ questions, never a real project's.
   with its responsibility and what it must not know about.
 - Adding a dependency: exact pin, released 7 or more days ago with no
   security fix after it, and ask the owner first with the reason.
-- The plugin's skill is listed as `/grilling-pane:grill`; the plugin name
-  comes first.
+- The plugin's skill is listed as `/grilling-pane:grilling`; the plugin
+  name comes first.
