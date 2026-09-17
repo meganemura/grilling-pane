@@ -1,0 +1,8 @@
+{
+  "name": "grilling-pane",
+  "version": "0.1.0",
+  "description": "A pane beside the transcript that shows the model's open interview questions and submits every pick as one prompt.",
+  "author": {
+    "name": "meganemura"
+  }
+}
