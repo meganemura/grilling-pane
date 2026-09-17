@@ -11,7 +11,7 @@ tier('user')
 
 const PLUGIN = 'grilling-pane'
 const COMMAND = 'grilling-pane'
-const STORE_KEY = 'isOpen'
+const STORE_KEY = 'wantsOpen'
 
 const SESSION = { surface: 'terminal', isInteractive: true, cwd: '/work' } as const
 
@@ -71,6 +71,7 @@ type WorldOptions = {
 // a drop.
 function world(on: On, options: WorldOptions = {}) {
   const opened: string[] = []
+  const openCalls: { id: string; focus?: true }[] = []
   const closed: string[] = []
   const logged: string[] = []
   const statuses: (string | undefined)[] = []
@@ -93,6 +94,7 @@ function world(on: On, options: WorldOptions = {}) {
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('ui.open', ($, e) => {
     opened.push(e.id)
+    openCalls.push({ id: e.id, ...(e.focus ? { focus: e.focus } : {}) })
     return { value: undefined }
   })
   on('ui.close', ($, e) => {
@@ -118,6 +120,7 @@ function world(on: On, options: WorldOptions = {}) {
 
   return {
     opened,
+    openCalls,
     closed,
     logged,
     statuses,
@@ -186,13 +189,51 @@ describe('mod', () => {
     expect(kept.store.get(STORE_KEY)).toBe(false)
   })
 
-  test('a store seeded with isOpen reopens the pane at session.start and draws the transcript', async ($, on) => {
-    world(on, { store: { [STORE_KEY]: true }, messages: [ONE_QUESTION] })
+  test('wanting the pane open, with a question already in the transcript, opens it once at session.start', async ($, on) => {
+    const kept = world(on, { store: { [STORE_KEY]: true }, messages: [ONE_QUESTION] })
 
     await $.session.start(SESSION)
 
+    expect(kept.opened).toEqual([PLUGIN])
     const text = textOf(await $.ui.render(PANE))
     expect(text).toContain('Q1 cache is per user, or one for all?')
+  })
+
+  test('wanting the pane open, but no question yet, does not open an empty pane at session.start', async ($, on) => {
+    const kept = world(on, { store: { [STORE_KEY]: true }, messages: [] })
+
+    await $.session.start(SESSION)
+
+    expect(kept.opened).toEqual([])
+  })
+
+  test('wanting the pane open, once a question appears through turn.complete, opens it without focus', async ($, on) => {
+    const kept = world(on, { store: { [STORE_KEY]: true }, messages: [] })
+    await $.session.start(SESSION)
+    expect(kept.opened).toEqual([])
+
+    kept.setMessages([ONE_QUESTION])
+    await $.turn.complete(TURN_COMPLETE)
+    await settle()
+
+    expect(kept.opened).toEqual([PLUGIN])
+    expect(kept.openCalls.at(-1)?.focus).toBeUndefined()
+    expect(textOf(await $.ui.render(PANE))).toContain('Q1')
+  })
+
+  test('after the person hides the pane, a later question does not reopen it, but the status line names it', async ($, on) => {
+    const kept = world(on, { messages: [] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN) // shows it, wanting it open
+    await $.command.run(RUN) // hides it, no longer wanting it open
+    expect(kept.store.get(STORE_KEY)).toBe(false)
+
+    kept.setMessages([ONE_QUESTION])
+    await $.turn.complete(TURN_COMPLETE)
+    await settle()
+
+    expect(kept.opened).toEqual([PLUGIN])
+    expect(kept.statuses.at(-1)).toContain('open questions')
   })
 
   test('with no open questions, the pane draws exactly one line saying so', async ($, on) => {

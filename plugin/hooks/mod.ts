@@ -23,7 +23,7 @@ import type { OpenQuestion, Option } from './block'
 
 const PANE_ID = 'grilling-pane'
 const COMMAND = 'grilling-pane'
-const STORE_KEY = 'isOpen'
+const STORE_KEY = 'wantsOpen'
 
 type Host = {
   messages: () => Promise<readonly SessionMessage[]>
@@ -41,6 +41,7 @@ type Host = {
 type State = {
   host: Host | null
   isOpen: boolean
+  wantsOpen: boolean
   open: OpenQuestion[]
   picks: Map<string, number>
   submitted: Set<string>
@@ -82,6 +83,26 @@ function updateStatus(state: State): void {
   host.status(state.isOpen || visible.length === 0 ? undefined : `grilling-pane: ${visible.length} open questions (/grilling-pane)`)
 }
 
+// `$.store` is the plugin's own file, kept across sessions and hot reloads and shared by every
+// session in every directory — one flag in it cannot mean "the pane is open", or a pane left
+// open in one session would reopen empty at the start of every later one. It means the person
+// wants the pane; the pane itself opens only once there is a question worth showing it for.
+// Used from `session.start` (by way of `reparse`, below) and from `reparse` itself on
+// `turn.complete`, so a question that appears mid-session opens the pane the same way one
+// already open at session start does.
+async function openIfWanted(state: State): Promise<void> {
+  const host = state.host
+  if (host === null || !state.wantsOpen || state.isOpen || visibleOf(state).length === 0) return
+  try {
+    // Not focused: opening on its own, unasked, must not take the keyboard away from whatever
+    // the person is about to type.
+    await host.open(false)
+    state.isOpen = true
+  } catch (error) {
+    host.log(`grilling-pane: reopen failed: ${messageOf(error)}`)
+  }
+}
+
 // Re-reads the transcript into `state.open`, drops any pick whose question is no longer open
 // (answered elsewhere, or gone from the transcript), and redraws. Wrapped whole in a try/catch:
 // a hook is fail-open, so a parse failure must not vanish silently — it goes to `host.log` once
@@ -96,6 +117,7 @@ async function reparse(state: State): Promise<void> {
       if (!openIdentities.has(identity)) state.picks.delete(identity)
     }
     host.invalidate()
+    await openIfWanted(state)
     updateStatus(state)
   } catch (error) {
     host.log(`grilling-pane: reparse failed: ${messageOf(error)}`)
@@ -233,6 +255,7 @@ export function register(on: On) {
   const state: State = {
     host: null,
     isOpen: false,
+    wantsOpen: false,
     open: [],
     picks: new Map(),
     submitted: new Set(),
@@ -245,17 +268,10 @@ export function register(on: On) {
       state.host?.log(`grilling-pane: /${COMMAND} is not available: ${messageOf(error)}`)
     })
     const stored = await state.host.storeGet(STORE_KEY).catch(() => undefined)
-    if (stored === true) {
-      // Not focused: a pane reopening on its own at session start must not take the keyboard
-      // away from whatever the person is about to type. Caught so a failed reopen still lets
-      // `register` and `reparse` below run for the rest of the session.
-      try {
-        await state.host.open(false)
-        state.isOpen = true
-      } catch (error) {
-        state.host.log(`grilling-pane: reopen at session start failed: ${messageOf(error)}`)
-      }
-    }
+    state.wantsOpen = stored === true
+    // `reparse` runs first, so whether to open (there is a question to answer) is decided from
+    // this session's own transcript, not just the flag; `openIfWanted` inside it is what
+    // actually opens the pane, without focus, when that is warranted.
     await reparse(state)
     return next(e)
   })
@@ -272,12 +288,16 @@ export function register(on: On) {
     if (state.isOpen) {
       await host.close()
       state.isOpen = false
+      state.wantsOpen = false
       await host.storeSet(STORE_KEY, false)
       return { text: 'grilling-pane hidden' }
     }
 
+    // Opens even with zero questions: the person asked outright, unlike the automatic open in
+    // `openIfWanted`, which only ever opens where there is something to answer.
     await host.open(true)
     state.isOpen = true
+    state.wantsOpen = true
     await host.storeSet(STORE_KEY, true)
     await reparse(state)
     return { text: 'grilling-pane shown' }
@@ -288,6 +308,7 @@ export function register(on: On) {
     const host = state.host
     if (result.deny === undefined && host !== null) {
       state.isOpen = false
+      state.wantsOpen = false
       await host.storeSet(STORE_KEY, false)
       updateStatus(state)
     }

@@ -58,6 +58,9 @@ presses the focused button. Esc returns focus to the prompt box. A mouse click a
 button. Press an option's button to choose it; press the same button again to clear the choice
 back to no pick. Press `Submit`, at the top or the bottom of the list, to send the round.
 
+After you show the pane once, it opens on its own whenever a round arrives, without taking the
+keyboard. Hide it with `/grilling-pane` to stop that.
+
 ## The question block
 
 The skill writes each round inside a fenced block labeled `grilling`:

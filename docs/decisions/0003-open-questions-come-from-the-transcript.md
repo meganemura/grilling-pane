@@ -36,6 +36,13 @@ discusses a past answer.
 `session.messages()` returns only the newest 4096 messages. A `grilling` block older than that
 window drops out of the open-question list along with the rest of that message.
 
+A stored flag, `wantsOpen`, records whether the person wants the pane, apart from whether the
+pane is open right now. `$.store` is one file for the whole plugin, kept between sessions and
+shared by every session. `/grilling-pane` sets the flag on show, and clears it on hide; closing
+the pane clears it too. While set, the pane opens without keyboard focus when a session starts
+with open questions. It also opens this way when a finished turn brings open questions while the
+pane is closed. With zero open questions, the pane stays closed.
+
 ## Consequences
 
 - The render hook stays cheap: it never touches the transcript, only the state the two parse
@@ -46,5 +53,7 @@ window drops out of the open-question list along with the rest of that message.
   pane. The assistant can ask it again, under a new number.
 - Matching on the number-and-text pair keeps a duplicate number from letting one answer hide two
   questions.
-- Tried in a real terminal, a session resumed in a new process. It reopened the pane from its
-  stored flag, and drew only the unanswered questions, counting skipped ones as answered.
+- A person who used the pane once gets it again in every later session, in any directory. It
+  opens the moment a `grilling` block appears, until they hide it.
+- Tried in a real terminal: a session resumed in a new process, with the flag still set. It
+  reopened the pane, drew only the unanswered questions, and counted skipped ones as answered.
