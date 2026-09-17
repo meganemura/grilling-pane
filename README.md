@@ -1,5 +1,7 @@
 # grilling-pane
 
+[![test](https://github.com/meganemura/grilling-pane/actions/workflows/test.yml/badge.svg)](https://github.com/meganemura/grilling-pane/actions/workflows/test.yml)
+
 A Claude Code plugin (a Claude Mod) that interviews the person about a plan before Claude acts
 on it. The `grill` skill runs Matt Pocock's `grilling` method. It writes each round of questions
 in a block, and grilling-pane draws that block in a pane beside the transcript. One Submit sends

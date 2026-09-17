@@ -28,8 +28,8 @@ None of the three gates calls the model, so the workflow needs no API credential
   It is a stated exception to the rule that a pinned version is 7 or more days old.
   `claude plugin test` first shipped in that version, so no older version can run the third gate.
 - Revisit the pin on or after 2026-09-22.
-- The local gates ran on `2.1.274`. The first CI run is the check of `2.1.273`, on a clean
-  machine.
+- The local gates ran on `2.1.274`. The first CI run, on 2026-09-17, ran the same gates on
+  `2.1.273` on a clean runner. All 23 tests passed.
 - The other pins are older than 7 days: `actions/checkout` v7.0.1 (2026-07-20),
   `actions/setup-node` v7.0.0 (2026-07-14), `typescript@7.0.2` (2026-07-08), and Node `22.23.2`
   (2026-07-29).
