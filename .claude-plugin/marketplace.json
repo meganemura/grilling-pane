@@ -1,0 +1,12 @@
+{
+  "name": "grilling-pane",
+  "description": "A Claude Code plugin that draws the model's open interview questions in a pane beside the transcript.",
+  "owner": { "name": "meganemura" },
+  "plugins": [
+    {
+      "name": "grilling-pane",
+      "source": "./plugin",
+      "description": "A pane beside the transcript that shows the model's open interview questions and submits every pick as one prompt."
+    }
+  ]
+}

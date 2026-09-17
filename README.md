@@ -35,14 +35,19 @@ invalidates exactly one entry
 
 ## Install
 
-This plugin is not on a marketplace yet. Run it from a checkout:
+```sh
+claude plugin marketplace add meganemura/grilling-pane
+claude plugin install grilling-pane@grilling-pane
+```
+
+To develop against a checkout, run the plugin from its working tree:
 
 ```sh
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir /path/to/grilling-pane/plugin
 ```
 
-Set `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` for every session, instead of prefixing each `claude`
-invocation, by adding it to `settings.json`'s `env`:
+To set `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` for each session, add it to the `env` of
+`settings.json`:
 
 ```json
 {
