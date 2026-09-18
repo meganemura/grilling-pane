@@ -318,11 +318,26 @@ function submitRowOf(ui: Ui, key: string, answered: number, skipped: number, sta
 // Nothing here reads `state.host` beyond what the caller already resolved into `ui` and `host`:
 // the render hook itself is the only place allowed to touch `$` (through `$.ui.resolve`), and
 // this function draws from `state` alone, per the module's own rule against reading the
-// transcript from `ui.render`.
-function paneOf(ui: Ui, state: State, host: Host): RenderElement {
+// transcript from `ui.render`. `bodyColumns` and `bodyRows` are the render input's own body
+// size, passed down for the "no open questions" line alone: centering it takes a Box as large
+// as the body to center inside, and the size to make one is only ever in the render input, never
+// in state.
+function paneOf(ui: Ui, state: State, host: Host, bodyColumns: number, bodyRows: number): RenderElement {
   const { Box, Text } = ui
   const visible = visibleOf(state)
-  if (visible.length === 0) return Text({ children: 'no open questions' })
+  if (visible.length === 0) {
+    // A first frame may report 0 for either before the surface has measured the pane; centering
+    // into a zero-sized Box would draw nothing, so this falls back to the plain line instead.
+    if (bodyColumns <= 0 || bodyRows <= 0) return Text({ children: 'no open questions' })
+    return Box({
+      key: 'empty',
+      width: bodyColumns,
+      height: bodyRows,
+      justifyContent: 'center',
+      alignItems: 'center',
+      children: [Text({ dimColor: true, children: 'no open questions' })],
+    })
+  }
 
   const answered = visible.filter((oq) => state.picks.has(identityOf(oq.question))).length
   const skipped = visible.length - answered
@@ -434,6 +449,6 @@ export function register(on: On) {
     if (e.requestId !== PANE_ID || state.host === null) return next(e)
     if (e.surface !== 'terminal') return next(e)
     const { Box, Button, Text } = await $.ui.resolve(e)
-    return paneOf({ Box, Button, Text }, state, state.host)
+    return paneOf({ Box, Button, Text }, state, state.host, e.props.bodyColumns, e.props.scroll.bodyRows)
   })
 }

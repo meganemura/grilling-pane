@@ -305,6 +305,33 @@ describe('mod', () => {
     expect(textOf(await $.ui.render(PANE))).toBe('no open questions')
   })
 
+  test('with no open questions, the line centers in a Box sized to the pane body', async ($, on) => {
+    world(on, { messages: [] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    const tree = await $.ui.render(PANE)
+    const box = boxByKey(tree, 'empty')
+
+    expect(box?.props.width).toBe(PANE.props.bodyColumns)
+    expect(box?.props.height).toBe(PANE.props.scroll.bodyRows)
+    expect(box?.props.justifyContent).toBe('center')
+    expect(box?.props.alignItems).toBe('center')
+    expect(textOf(tree)).toBe('no open questions')
+  })
+
+  test('a zero body size (a first frame before the surface has measured) falls back to the plain line', async ($, on) => {
+    world(on, { messages: [] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    const zeroPane: RenderInput<'Pane'> = { ...PANE, props: { ...PANE.props, scroll: { ...PANE.props.scroll, bodyRows: 0 } } }
+    const tree = await $.ui.render(zeroPane)
+
+    expect(boxByKey(tree, 'empty')).toBeUndefined()
+    expect(textOf(tree)).toBe('no open questions')
+  })
+
   test('picking one option and pressing Submit sends the expected text, and the answered questions leave the pane', async ($, on) => {
     const kept = world(on, { messages: [TWO_QUESTIONS] })
     await $.session.start(SESSION)
