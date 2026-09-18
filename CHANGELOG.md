@@ -3,6 +3,19 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has no
 stable release yet: version numbers may still change shape between releases.
 
+## 0.3.0 - 2026-09-18
+
+### Added
+
+- A typed prompt while a round is open carries a context note to the model.
+- The note lists the open question numbers and says the prompt is not the answer sheet.
+- The note says a new round carries the open questions forward with the same number and text.
+- The skill's own matching rule for a typed prompt.
+
+### Changed
+
+- `no open questions` is drawn in the middle of the pane.
+
 ## 0.2.1 - 2026-09-18
 
 ### Changed
