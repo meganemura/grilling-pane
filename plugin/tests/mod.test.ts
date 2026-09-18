@@ -348,7 +348,7 @@ describe('mod', () => {
     expect(markerOf(await $.ui.render(PANE), 'q0:o0:row')).toEqual({ text: '( )', dim: true })
   })
 
-  test('the marker is green and bold when picked, and the question text is bold and cyan', async ($, on) => {
+  test('the marker is green and bold when picked, and the question text is bold and near-white', async ($, on) => {
     world(on, { messages: [ONE_QUESTION] })
     await $.session.start(SESSION)
     await $.command.run(RUN)
@@ -357,7 +357,7 @@ describe('mod', () => {
     expect(markerOf(before, 'q0:o0:row')).toEqual({ text: '( )', dim: true })
     expect(coloredLinesOf(before).find((line) => line.text === 'Q1 cache is per user, or one for all?')).toEqual({
       text: 'Q1 cache is per user, or one for all?',
-      color: 'cyan',
+      color: '#c8d8e8',
       bold: true,
     })
 

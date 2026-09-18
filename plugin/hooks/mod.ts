@@ -25,6 +25,12 @@ const PANE_ID = 'grilling-pane'
 const COMMAND = 'grilling-pane'
 const STORE_KEY = 'wantsOpen'
 
+// Nearer to white than `cyan`, asked for after a real terminal measured the two: `cyan` there is
+// a deep cyan (256-colour index 38), `white` pure white (231, the body text's own colour, so it
+// would not read apart from it). This hex maps to 189, a near-white with a blue tint that still
+// reads apart from the options below it.
+const QUESTION_COLOR = '#c8d8e8'
+
 type Host = {
   messages: () => Promise<readonly SessionMessage[]>
   submit: (text: string) => Promise<{ drop?: string }>
@@ -257,7 +263,7 @@ function questionBoxOf(ui: Ui, index: number, oq: OpenQuestion, state: State, ho
   const key = `q${index}`
   const { question, isDuplicate } = oq
   const identity = identityOf(question)
-  const children: RenderElement[] = [Text({ bold: true, color: 'cyan', children: `Q${question.number} ${question.text}` })]
+  const children: RenderElement[] = [Text({ bold: true, color: QUESTION_COLOR, children: `Q${question.number} ${question.text}` })]
   if (isDuplicate) children.push(Text({ color: 'yellow', children: 'duplicate number' }))
   const optionBoxes = question.options.map((option, optionIndex) => optionBoxOf(ui, key, optionIndex, option, identity, state, host))
   optionBoxes.push(discussBoxOf(ui, key, identity, state, host))

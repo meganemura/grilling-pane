@@ -3,6 +3,12 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has no
 stable release yet: version numbers may still change shape between releases.
 
+## 0.2.1 - 2026-09-18
+
+### Changed
+
+- The question line is a near-white blue tint in place of cyan.
+
 ## 0.2.0 - 2026-09-18
 
 ### Added
