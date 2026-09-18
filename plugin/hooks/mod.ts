@@ -1,9 +1,9 @@
 // grilling-pane's one function-hooks module (the validator admits one per plugin). Reads the
 // `Q<n>:` questions the model posts inside a ```grilling code block in the transcript, shows
-// every one still unanswered in a pane beside it with a radio-style pick built from `Button`
-// (see the note by `Ui` below for why not `Select`), and submits every pick — skipped where none
-// was made — as one prompt that repeats each question's text, so the transcript itself is the
-// record of what was asked and what was answered.
+// the unanswered ones from the latest such round in a pane beside it with a radio-style pick
+// built from `Button` (see the note by `Ui` below for why not `Select`), and submits every pick
+// — skipped where none was made — as one prompt that repeats each question's text, so the
+// transcript itself is the record of what was asked and what was answered.
 //
 // Must NOT know about: what a question means or the plan the model is asking about (this file
 // only ever holds question numbers, text and option labels as opaque strings); how a ```grilling

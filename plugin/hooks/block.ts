@@ -96,18 +96,28 @@ function answerPrefixOf(question: Question): string {
   return `Q${question.number} ${question.text} → `
 }
 
-// Every question from every assistant message's ```grilling blocks that has no answer line
-// (a skipped one counts as answered too), deduplicated by identity, first occurrence kept, in
-// ascending number order with ties in the order they were first seen.
+// The latest round's questions that have no answer line (a skipped or discussed one counts as
+// answered too), deduplicated by identity, first occurrence kept, in ascending number order with
+// ties in the order they were first seen.
 //
-// Answer lines are read only from user messages: an assistant message may quote the header back
-// (repeating the questions to explain itself), and that quoting must not count as an answer.
+// A round is one assistant message with one or more ```grilling blocks. The latest round
+// supersedes every round before it: a question the model still needs, it asks again under a new
+// number in the new round, and the earlier round's own text stays in the transcript untouched —
+// it is the pane, not the transcript, that stops showing it.
+//
+// Answer lines are read from every user message, not just those after the latest round: an
+// assistant message may quote the header back (repeating the questions to explain itself), and
+// that quoting must not count as an answer.
 export function openQuestionsOf(messages: readonly SessionMessage[]): OpenQuestion[] {
-  const allQuestions: Question[] = []
+  let allQuestions: Question[] = []
   const answerLines: string[] = []
   for (const message of messages) {
-    if (message.role === 'assistant') allQuestions.push(...questionsOf(message.text))
-    else answerLines.push(...answerLinesOf(message.text))
+    if (message.role === 'assistant') {
+      const questions = questionsOf(message.text)
+      if (questions.length > 0) allQuestions = questions
+    } else {
+      answerLines.push(...answerLinesOf(message.text))
+    }
   }
 
   const isAnswered = (question: Question): boolean => {

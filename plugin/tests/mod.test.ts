@@ -45,15 +45,11 @@ const TWO_QUESTIONS: SessionMessage = {
   toolUses: [],
 }
 
-const DUPLICATE_A: SessionMessage = {
+// Two blocks in one message, sharing a number: one round (a later message would supersede an
+// earlier one entirely, so a cross-round duplicate cannot happen).
+const DUPLICATE_NUMBERS: SessionMessage = {
   role: 'assistant',
-  text: ['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```'].join('\n'),
-  toolUses: [],
-}
-
-const DUPLICATE_B: SessionMessage = {
-  role: 'assistant',
-  text: ['```grilling', 'Q1: report cadence?', '- weekly', '- daily', '```'].join('\n'),
+  text: ['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```', '```grilling', 'Q1: report cadence?', '- weekly', '- daily', '```'].join('\n'),
   toolUses: [],
 }
 
@@ -406,7 +402,7 @@ describe('mod', () => {
   })
 
   test('two questions sharing a number both draw "duplicate number"', async ($, on) => {
-    world(on, { messages: [DUPLICATE_A, DUPLICATE_B] })
+    world(on, { messages: [DUPLICATE_NUMBERS] })
     await $.session.start(SESSION)
     await $.command.run(RUN)
 

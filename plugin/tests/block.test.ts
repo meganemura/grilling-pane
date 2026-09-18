@@ -125,10 +125,13 @@ describe('answersTextOf', () => {
 })
 
 describe('openQuestionsOf', () => {
-  test('keeps only unanswered questions across two assistant messages; a skipped one also counts as answered', () => {
+  test('within one round, an answered question drops and a skipped one also counts as answered', () => {
     const messages = [
-      assistant(['```grilling', 'Q1: retry count?', '- 3', '- 5', 'Q2: timeout?', '- 30s', '- 60s', '```'].join('\n')),
-      assistant(['```grilling', 'Q3: 配信は週次か日次か?', '- 週次', '- 日次', '```'].join('\n')),
+      assistant(
+        ['```grilling', 'Q1: retry count?', '- 3', '- 5', 'Q2: timeout?', '- 30s', '- 60s', 'Q3: 配信は週次か日次か?', '- 週次', '- 日次', '```'].join(
+          '\n',
+        ),
+      ),
       user([ANSWERS_HEADER, 'Q1 retry count? → 3', 'Q2 timeout? → (skipped)'].join('\n')),
     ]
 
@@ -139,11 +142,10 @@ describe('openQuestionsOf', () => {
     expect(open[0]!.isDuplicate).toBe(false)
   })
 
-  test('two questions sharing a number are both open and both marked duplicate; answering one leaves the other alone', () => {
-    const messages: SessionMessage[] = [
-      assistant(['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```'].join('\n')),
-      assistant(['```grilling', 'Q1: report cadence?', '- weekly', '- daily', '```'].join('\n')),
-    ]
+  test('two questions sharing a number in the same round are both open and both marked duplicate; answering one leaves the other alone', () => {
+    const roundText = ['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```', '```grilling', 'Q1: report cadence?', '- weekly', '- daily', '```']
+      .join('\n')
+    const messages: SessionMessage[] = [assistant(roundText)]
 
     const bothOpen = openQuestionsOf(messages)
     expect(bothOpen).toHaveLength(2)
@@ -165,5 +167,55 @@ describe('openQuestionsOf', () => {
 
     expect(open).toHaveLength(1)
     expect(open[0]!.question.number).toBe(1)
+  })
+
+  test('a new round replaces the one before it: only the latest message with a block stays open', () => {
+    const messages: SessionMessage[] = [
+      assistant(['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```'].join('\n')),
+      assistant(['```grilling', 'Q2: report cadence?', '- weekly', '- daily', '```'].join('\n')),
+    ]
+
+    expect(openQuestionsOf(messages).map((oq) => oq.question.number)).toEqual([2])
+  })
+
+  test('answering the latest round leaves nothing open, even though the earlier round was never answered', () => {
+    const messages: SessionMessage[] = [
+      assistant(['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```'].join('\n')),
+      assistant(['```grilling', 'Q2: report cadence?', '- weekly', '- daily', '```'].join('\n')),
+      user([ANSWERS_HEADER, 'Q2 report cadence? → weekly'].join('\n')),
+    ]
+
+    expect(openQuestionsOf(messages)).toEqual([])
+  })
+
+  test('an assistant message with no block, after a round, does not change what is open', () => {
+    const messages: SessionMessage[] = [
+      assistant(['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```'].join('\n')),
+      assistant('Thanks, I will factor that in.'),
+    ]
+
+    expect(openQuestionsOf(messages).map((oq) => oq.question.number)).toEqual([1])
+  })
+
+  test('two blocks in the same assistant message are one round', () => {
+    const messages: SessionMessage[] = [
+      assistant(
+        [
+          '```grilling',
+          'Q1: cache scope?',
+          '- per user',
+          '- shared',
+          '```',
+          'some prose in between',
+          '```grilling',
+          'Q2: report cadence?',
+          '- weekly',
+          '- daily',
+          '```',
+        ].join('\n'),
+      ),
+    ]
+
+    expect(openQuestionsOf(messages).map((oq) => oq.question.number)).toEqual([1, 2])
   })
 })

@@ -36,7 +36,8 @@ Q14: Does an entry expire by time, or on write?
    ask one question at a time (a version older than v1.2.0). The pane already gives each question fixed options.
 5. A prompt that starts with `Answers (grilling-pane):` carries one round's answers, one
    `Q<n> <question> → <chosen label>` line each. Continue, in that same turn, with the round the
-   answers open. A plain-sentence reply also counts as an answer.
+   answers open. A plain-sentence reply also counts as an answer. A round replaces the one before
+   it in the pane, so re-ask, under a new number, any earlier question you still need answered.
    - `(skipped)` means the person did not decide. Never treat a skip as agreement with the
      recommended option. You may ask the question again later, under a new number.
    - `(discuss)` means the person wants an option the list did not offer, or wants to talk the

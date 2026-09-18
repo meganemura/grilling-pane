@@ -121,6 +121,9 @@ Every question the pane shows is text inside an assistant message. Every answer 
 is a prompt that repeats the question text. A person with the plugin uninstalled can still read
 every question and every answer in the transcript alone.
 
+The pane shows the latest round only. An earlier round's open questions leave the pane once a
+new round arrives, whether or not the person answered them.
+
 ## Development
 
 Three gates run before a commit and in CI: `claude plugin validate plugin`,
