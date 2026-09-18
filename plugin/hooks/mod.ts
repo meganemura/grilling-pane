@@ -18,12 +18,20 @@
 // state alone and never reads the transcript itself.
 
 import type { Elements, On, RenderElement, SessionMessage } from 'claude-code'
-import { answersTextOf, identityOf, openQuestionsOf } from './block'
+import { ANSWERS_HEADER, answersTextOf, identityOf, openQuestionsOf } from './block'
 import type { OpenQuestion, Option } from './block'
 
 const PANE_ID = 'grilling-pane'
 const COMMAND = 'grilling-pane'
 const STORE_KEY = 'wantsOpen'
+
+// As `plugin.json` names this plugin, and so what the engine stamps `origin.name` with on this
+// plugin's own `$.prompt.submit` calls (`hostOf`'s `submit`).
+const PLUGIN_NAME = 'grilling-pane'
+
+// `prompt.submit`'s `context` is capped at this many characters total, across every entry it
+// carries (the d.ts states the cap; matched here rather than discovered by a rejected prompt).
+const PROMPT_CONTEXT_MAX_CHARS = 32_000
 
 // Nearer to white than `cyan`, asked for after a real terminal measured the two: `cyan` there is
 // a deep cyan (256-colour index 38), `white` pure white (231, the body text's own colour, so it
@@ -82,6 +90,23 @@ function messageOf(error: unknown): string {
 // is the filter applied here.
 function visibleOf(state: State): OpenQuestion[] {
   return state.open.filter((oq) => !state.submitted.has(identityOf(oq.question)))
+}
+
+// The context block a plain prompt carries down while a round is open: without it, a model reads
+// a prompt that answers only some questions as skipping the rest, and moves on with whichever
+// option it marked recommended. `numbers` is the open round's own numbers, in the pane's order
+// (a duplicate number appears once per question it belongs to, as the pane shows it) — nothing
+// about a pick rides here, since a pick exists only in the pane until Submit sends it.
+export function typedWhileOpenNoteOf(numbers: readonly number[]): string {
+  const list = numbers.map((number) => `Q${number}`).join(', ')
+  return (
+    `grilling-pane: the person typed this prompt while questions ${list} of the current round ` +
+    'were still open in the pane. It is not the answer sheet. Read it as a reply about what it ' +
+    'names. Every question it does not name stays open: it is not skipped, and it is not ' +
+    'answered with the recommended option. If you post a new round while some of these ' +
+    'questions are still open, carry each of them forward with the same number and the same ' +
+    "text, so the pane keeps the person's picks."
+  )
 }
 
 function updateStatus(state: State): void {
@@ -381,6 +406,28 @@ export function register(on: On) {
       updateStatus(state)
     }
     return result
+  })
+
+  // The person's own words reach the model untouched: this rides the note as context, appended
+  // once, rather than rewriting `e.text` into something that quotes the pane at them. The note
+  // is built from the transcript's own open round (its question numbers, nothing else) — never
+  // from a pick, which exists only in the pane until Submit sends it, so nothing pane-only ever
+  // becomes part of the model's input.
+  on('prompt.submit', ($, e, next) => {
+    const isOwnPrompt = e.origin.kind === 'plugin' && e.origin.name === PLUGIN_NAME
+    if (isOwnPrompt || e.text.startsWith(ANSWERS_HEADER)) return next(e)
+
+    const numbers = visibleOf(state).map((oq) => oq.question.number)
+    if (numbers.length === 0) return next(e)
+
+    const context = e.context ?? []
+    const note = typedWhileOpenNoteOf(numbers)
+    const used = context.reduce((sum, block) => sum + block.length, 0)
+    if (used + note.length > PROMPT_CONTEXT_MAX_CHARS) {
+      state.host?.log('grilling-pane: the typed-while-open note did not fit in the prompt and was dropped')
+      return next(e)
+    }
+    return next({ ...e, context: [...context, note] })
   })
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {

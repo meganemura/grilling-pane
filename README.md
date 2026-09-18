@@ -72,6 +72,12 @@ back to no pick. Each question's last option, `Talk about this one`, works the s
 After you show the pane once, it opens on its own whenever a round arrives, without taking the
 keyboard. Hide it with `/grilling-pane` to stop that.
 
+## Typing while a round is open
+
+Your typed message goes through as it is; the plugin never changes it. Claude reads the
+questions you did not name as still open, not as skipped. The pane keeps your picks on those
+questions, and the next round repeats them.
+
 ## The question block
 
 The plugin's skill writes each round inside a fenced block labeled `grilling`:

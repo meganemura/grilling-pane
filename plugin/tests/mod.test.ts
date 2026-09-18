@@ -7,6 +7,9 @@
 import type { CommandRunInput, On, RenderInput, SessionMessage, TurnCompleteInput } from 'claude-code'
 import { describe, expect, mock, test, tier } from 'claude-code/testing'
 
+import { ANSWERS_HEADER } from '../hooks/block'
+import { typedWhileOpenNoteOf } from '../hooks/mod'
+
 tier('user')
 
 const PLUGIN = 'grilling-pane'
@@ -72,6 +75,7 @@ function world(on: On, options: WorldOptions = {}) {
   const logged: string[] = []
   const statuses: (string | undefined)[] = []
   const submittedTexts: string[] = []
+  const submittedContexts: (readonly string[] | undefined)[] = []
   let messages: SessionMessage[] = options.messages ?? []
 
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -79,10 +83,13 @@ function world(on: On, options: WorldOptions = {}) {
   on('session.messages', () => ({ value: messages }))
 
   // A chain event, not a plain call: the terminal fake answers with the shape `prompt.submit`
-  // itself resolves to (`{ text }` or `{ drop }`), never wrapped in `{ value }`.
+  // itself resolves to (`{ text }` or `{ drop }`), never wrapped in `{ value }`. `e.context` is
+  // recorded as it reaches the terminal, past every hook above it (mod.ts's own included), so a
+  // test can check what a hook attached without the terminal itself needing to echo it back.
   if (!options.noSubmit) {
     on('prompt.submit', ($, e) => {
       submittedTexts.push(e.text)
+      submittedContexts.push(e.context)
       return options.submit ? options.submit(e.text) : { text: e.text }
     })
   }
@@ -121,6 +128,7 @@ function world(on: On, options: WorldOptions = {}) {
     logged,
     statuses,
     submittedTexts,
+    submittedContexts,
     store,
     setMessages: (next: SessionMessage[]) => {
       messages = next
@@ -460,5 +468,50 @@ describe('mod', () => {
     const tree = await $.ui.render(PANE)
     expect(textOf(tree)).toContain('Q1')
     expect(markerOf(tree, 'q0:o0:row')).toEqual({ text: '(*)', color: 'green', bold: true })
+  })
+
+  test('a plain prompt gets the typed-while-open note appended, after any context it already had, while a round is open', async ($, on) => {
+    const kept = world(on, { messages: [ONE_QUESTION] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    const result = await $.prompt.submit({ text: 'go with per user', origin: { kind: 'composer' }, wait: false, context: ['already there'] })
+
+    expect(result.text).toBe('go with per user')
+    expect(kept.submittedContexts.at(-1)).toEqual(['already there', typedWhileOpenNoteOf([1])])
+  })
+
+  test('a prompt that is itself the answer sheet does not get the note', async ($, on) => {
+    const kept = world(on, { messages: [ONE_QUESTION] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    await $.prompt.submit({
+      text: `${ANSWERS_HEADER}\nQ1 cache is per user, or one for all? → per user`,
+      origin: { kind: 'composer' },
+      wait: false,
+    })
+
+    expect(kept.submittedContexts.at(-1)).toBeUndefined()
+  })
+
+  test('a plain prompt when no question is open does not get the note', async ($, on) => {
+    const kept = world(on, { messages: [] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    await $.prompt.submit({ text: 'hello', origin: { kind: 'composer' }, wait: false })
+
+    expect(kept.submittedContexts.at(-1)).toBeUndefined()
+  })
+
+  test("the plugin's own submitted prompt does not get the note", async ($, on) => {
+    const kept = world(on, { messages: [ONE_QUESTION] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    await $.prompt.submit({ text: 'anything', origin: { kind: 'plugin', name: 'grilling-pane' }, wait: false })
+
+    expect(kept.submittedContexts.at(-1)).toBeUndefined()
   })
 })
