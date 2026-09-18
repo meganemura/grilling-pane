@@ -149,8 +149,21 @@ function textOf(tree: unknown): string {
   return textOf(children)
 }
 
-// Every Button in a drawn tree, keyed, so a test can read one option's marker (`(*)`/`( )`)
-// without depending on where in the tree it sits.
+// Every `Text` node in a drawn tree, each with its own text and the style it set (color, bold),
+// absent where it set none.
+function coloredLinesOf(tree: unknown): { text: string; color?: string; bold?: boolean }[] {
+  if (Array.isArray(tree)) return tree.flatMap(coloredLinesOf)
+  if (typeof tree !== 'object' || tree === null) return []
+  const type: unknown = Reflect.get(tree, 'type')
+  const children: unknown = Reflect.get(tree, 'children')
+  if (type === 'Text') {
+    const info = textInfoOf(tree)
+    return info === undefined ? [] : [{ text: info.text, ...(info.color === undefined ? {} : { color: info.color }), ...(info.bold ? { bold: true } : {}) }]
+  }
+  return coloredLinesOf(children)
+}
+
+// Every Button in a drawn tree, keyed.
 function buttonsOf(tree: unknown): { key: string; label: string }[] {
   if (Array.isArray(tree)) return tree.flatMap(buttonsOf)
   if (typeof tree !== 'object' || tree === null) return []
@@ -163,6 +176,50 @@ function buttonsOf(tree: unknown): { key: string; label: string }[] {
     return [{ key: typeof key === 'string' ? key : '', label: typeof label === 'string' ? label : '' }]
   }
   return buttonsOf(children)
+}
+
+// The keyed Box drawn under `key` (a row, or the marker's or the Button's own wrapper inside
+// one), or undefined: read here rather than searched for by content, since a Box carries no
+// text of its own for `textOf` to find it by.
+function boxByKey(tree: unknown, key: string): { props: Record<string, unknown>; children: unknown } | undefined {
+  if (Array.isArray(tree)) {
+    for (const child of tree) {
+      const found = boxByKey(child, key)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  if (typeof tree !== 'object' || tree === null) return undefined
+  const type: unknown = Reflect.get(tree, 'type')
+  const props: unknown = Reflect.get(tree, 'props')
+  const children: unknown = Reflect.get(tree, 'children')
+  if (type === 'Box' && typeof props === 'object' && props !== null && Reflect.get(props, 'key') === key) {
+    return { props: props as Record<string, unknown>, children }
+  }
+  return boxByKey(children, key)
+}
+
+// One `Text` element's own text and style, read directly off a node (not searched for): used on
+// a row Box's first child, the marker, since a marker carries no key of its own to search by.
+function textInfoOf(node: unknown): { text: string; color?: string; bold?: boolean; dim?: boolean } | undefined {
+  if (typeof node !== 'object' || node === null) return undefined
+  const type: unknown = Reflect.get(node, 'type')
+  if (type !== 'Text') return undefined
+  const props: unknown = Reflect.get(node, 'props')
+  const children: unknown = Reflect.get(node, 'children')
+  const text = (Array.isArray(children) ? children : []).filter((child): child is string => typeof child === 'string').join('')
+  const color = typeof props === 'object' && props ? Reflect.get(props, 'color') : undefined
+  const bold = typeof props === 'object' && props ? Reflect.get(props, 'bold') : undefined
+  const dim = typeof props === 'object' && props ? Reflect.get(props, 'dimColor') : undefined
+  return { text, ...(typeof color === 'string' ? { color } : {}), ...(bold === true ? { bold: true } : {}), ...(dim === true ? { dim: true } : {}) }
+}
+
+// The marker `Text` drawn beside an option's (or the discuss option's) Button: inside its own
+// fixed-width wrapper Box (`${rowKey}:marker`, `markerRowOf`'s own key), one level under the row.
+function markerOf(tree: unknown, rowKey: string): { text: string; color?: string; bold?: boolean; dim?: boolean } | undefined {
+  const wrapper = boxByKey(tree, `${rowKey}:marker`)
+  const first = Array.isArray(wrapper?.children) ? wrapper.children[0] : undefined
+  return textInfoOf(first)
 }
 
 // A Button's `onPress` is not awaited by `$.ui.press`; it settles after a few turns of the task
@@ -288,13 +345,64 @@ describe('mod', () => {
 
     await $.ui.press({ plugin: PLUGIN, key: 'q0:o0:button' })
     await settle()
-    const selected = buttonsOf(await $.ui.render(PANE)).find((button) => button.key === 'q0:o0:button')
-    expect(selected?.label.startsWith('(*)')).toBe(true)
+    expect(markerOf(await $.ui.render(PANE), 'q0:o0:row')).toEqual({ text: '(*)', color: 'green', bold: true })
 
     await $.ui.press({ plugin: PLUGIN, key: 'q0:o0:button' })
     await settle()
-    const deselected = buttonsOf(await $.ui.render(PANE)).find((button) => button.key === 'q0:o0:button')
-    expect(deselected?.label.startsWith('( )')).toBe(true)
+    expect(markerOf(await $.ui.render(PANE), 'q0:o0:row')).toEqual({ text: '( )', dim: true })
+  })
+
+  test('the marker is green and bold when picked, and the question text is bold and cyan', async ($, on) => {
+    world(on, { messages: [ONE_QUESTION] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    const before = await $.ui.render(PANE)
+    expect(markerOf(before, 'q0:o0:row')).toEqual({ text: '( )', dim: true })
+    expect(coloredLinesOf(before).find((line) => line.text === 'Q1 cache is per user, or one for all?')).toEqual({
+      text: 'Q1 cache is per user, or one for all?',
+      color: 'cyan',
+      bold: true,
+    })
+
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:o0:button' })
+    await settle()
+    expect(markerOf(await $.ui.render(PANE), 'q0:o0:row')).toEqual({ text: '(*)', color: 'green', bold: true })
+  })
+
+  test('the marker sits in a fixed-width Box, so a long label cannot squeeze it and wrap it', async ($, on) => {
+    world(on, { messages: [ONE_QUESTION] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    const wrapper = boxByKey(await $.ui.render(PANE), 'q0:o0:row:marker')
+    expect(wrapper?.props.width).toBe(3)
+    expect(wrapper?.props.flexShrink).toBe(0)
+  })
+
+  test('the discuss option is drawn last on every question, and picking it sends a "(discuss)" line', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+
+    const tree = await $.ui.render(PANE)
+    const q1Buttons = buttonsOf(tree).filter((button) => button.key.startsWith('q0:'))
+    const q2Buttons = buttonsOf(tree).filter((button) => button.key.startsWith('q1:'))
+    expect(q1Buttons.at(-1)).toEqual({ key: 'q0:discuss:button', label: 'Talk about this one' })
+    expect(q2Buttons.at(-1)).toEqual({ key: 'q1:discuss:button', label: 'Talk about this one' })
+    expect(textOf(tree)).toContain('0 answered, 2 skipped')
+
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
+    await settle()
+    expect(markerOf(await $.ui.render(PANE), 'q0:discuss')).toEqual({ text: '(*)', color: 'green', bold: true })
+    expect(textOf(await $.ui.render(PANE))).toContain('1 answered, 1 skipped')
+
+    await $.ui.press({ plugin: PLUGIN, key: 'submit:top:button' })
+    await settle()
+
+    expect(kept.submittedTexts.at(-1)).toBe(
+      ['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → (discuss)', 'Q2 配信は週次か日次か? → (skipped)'].join('\n'),
+    )
   })
 
   test('two questions sharing a number both draw "duplicate number"', async ($, on) => {
@@ -338,8 +446,7 @@ describe('mod', () => {
 
     const tree = await $.ui.render(PANE)
     expect(textOf(tree)).toContain('Q1')
-    const selected = buttonsOf(tree).find((button) => button.key === 'q0:o0:button')
-    expect(selected?.label.startsWith('(*)')).toBe(true)
+    expect(markerOf(tree, 'q0:o0:row')).toEqual({ text: '(*)', color: 'green', bold: true })
     expect(kept.logged.some((line) => line.startsWith('grilling-pane: submit failed:'))).toBe(true)
   })
 
@@ -356,7 +463,6 @@ describe('mod', () => {
     expect(kept.submittedTexts).toHaveLength(1)
     const tree = await $.ui.render(PANE)
     expect(textOf(tree)).toContain('Q1')
-    const selected = buttonsOf(tree).find((button) => button.key === 'q0:o0:button')
-    expect(selected?.label.startsWith('(*)')).toBe(true)
+    expect(markerOf(tree, 'q0:o0:row')).toEqual({ text: '(*)', color: 'green', bold: true })
   })
 })

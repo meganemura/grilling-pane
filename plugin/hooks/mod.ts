@@ -43,7 +43,9 @@ type State = {
   isOpen: boolean
   wantsOpen: boolean
   open: OpenQuestion[]
-  picks: Map<string, number>
+  // A question's pick, by identity: an option's index, or `'discuss'` for the pane's own extra
+  // option (see `discussBoxOf`) — never a value the model wrote.
+  picks: Map<string, number | 'discuss'>
   submitted: Set<string>
   isSubmitting: boolean
 }
@@ -166,8 +168,26 @@ type Ui = Pick<Elements['terminal'], 'Box' | 'Button' | 'Text'>
 
 // `(*)`/`( )` and not a Unicode radio glyph: some terminal fonts draw a symbol glyph two cells
 // wide, which pushes the label after it out of line. ASCII draws one cell wide in every font.
-function markerOf(isSelected: boolean): string {
-  return isSelected ? '(*)' : '( )'
+// Green and bold picked, dim otherwise, so which option is picked reads before the label does.
+function markerTextOf(ui: Ui, isSelected: boolean): RenderElement {
+  const { Text } = ui
+  return isSelected ? Text({ color: 'green', bold: true, children: '(*)' }) : Text({ dimColor: true, children: '( )' })
+}
+
+// A marker plus its Button, side by side, the marker's own column held to a fixed width: without
+// it, a label longer than the row squeezed the marker down to fit and wrapped it onto two lines
+// (measured on a real terminal: `(` then the wrapped label, `)` alone on the next line).
+function markerRowOf(ui: Ui, key: string, marker: RenderElement, button: RenderElement): RenderElement {
+  const { Box } = ui
+  return Box({
+    key,
+    flexDirection: 'row',
+    columnGap: 1,
+    children: [
+      Box({ key: `${key}:marker`, width: 3, flexShrink: 0, children: [marker] }),
+      Box({ key: `${key}:label`, flexGrow: 1, flexShrink: 1, children: [button] }),
+    ],
+  })
 }
 
 function optionBoxOf(ui: Ui, questionKey: string, index: number, option: Option, identity: string, state: State, host: Host): RenderElement {
@@ -175,21 +195,61 @@ function optionBoxOf(ui: Ui, questionKey: string, index: number, option: Option,
   const key = `${questionKey}:o${index}`
   const isSelected = state.picks.get(identity) === index
   const children: RenderElement[] = [
+    markerRowOf(
+      ui,
+      `${key}:row`,
+      markerTextOf(ui, isSelected),
+      Button({
+        key: `${key}:button`,
+        label: option.label,
+        plain: true,
+        onPress: () => {
+          if (isSelected) state.picks.delete(identity)
+          else state.picks.set(identity, index)
+          updateStatus(state)
+          host.invalidate()
+        },
+      }),
+    ),
+  ]
+  if (option.reason !== undefined) {
+    children.push(
+      Box({
+        key: `${key}:reason`,
+        paddingLeft: 4,
+        children: [Text({ dimColor: true, children: option.reason === '' ? 'recommended' : `recommended: ${option.reason}` })],
+      }),
+    )
+  }
+  return Box({ key, flexDirection: 'column', children })
+}
+
+// The pane's own extra option, never one the model wrote: without it, the only way past an
+// option list that misses what the person is actually thinking is to skip, and a model then
+// tends to read a skip as agreement with whichever option it marked recommended. Drawn by the
+// pane itself, on every question, last — uniform across every question, and not dependent on
+// the model at all: the skill asks it for questions and options, never for this one.
+function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: State, host: Host): RenderElement {
+  const { Button } = ui
+  const key = `${questionKey}:discuss`
+  const isSelected = state.picks.get(identity) === 'discuss'
+  return markerRowOf(
+    ui,
+    key,
+    markerTextOf(ui, isSelected),
     Button({
       key: `${key}:button`,
-      label: `${markerOf(isSelected)} ${option.label}`,
+      label: 'Talk about this one',
+      plain: true,
+      dimColor: true,
       onPress: () => {
         if (isSelected) state.picks.delete(identity)
-        else state.picks.set(identity, index)
+        else state.picks.set(identity, 'discuss')
         updateStatus(state)
         host.invalidate()
       },
     }),
-  ]
-  if (option.reason !== undefined) {
-    children.push(Text({ dimColor: true, children: option.reason === '' ? '    recommended' : `    recommended: ${option.reason}` }))
-  }
-  return Box({ key, flexDirection: 'column', children })
+  )
 }
 
 function questionBoxOf(ui: Ui, index: number, oq: OpenQuestion, state: State, host: Host): RenderElement {
@@ -197,9 +257,11 @@ function questionBoxOf(ui: Ui, index: number, oq: OpenQuestion, state: State, ho
   const key = `q${index}`
   const { question, isDuplicate } = oq
   const identity = identityOf(question)
-  const children: RenderElement[] = [Text({ bold: true, children: `Q${question.number} ${question.text}` })]
+  const children: RenderElement[] = [Text({ bold: true, color: 'cyan', children: `Q${question.number} ${question.text}` })]
   if (isDuplicate) children.push(Text({ color: 'yellow', children: 'duplicate number' }))
-  question.options.forEach((option, optionIndex) => children.push(optionBoxOf(ui, key, optionIndex, option, identity, state, host)))
+  const optionBoxes = question.options.map((option, optionIndex) => optionBoxOf(ui, key, optionIndex, option, identity, state, host))
+  optionBoxes.push(discussBoxOf(ui, key, identity, state, host))
+  children.push(Box({ key: `${key}:options`, flexDirection: 'column', paddingLeft: 2, children: optionBoxes }))
   return Box({ key, flexDirection: 'column', children })
 }
 

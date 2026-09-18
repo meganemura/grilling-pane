@@ -14,16 +14,18 @@ turn.
 [ Submit ] 1 answered, 1 skipped
 
 Q4 Where does the cache live?
-[ ( ) In the memory of the application process ]
-    recommended: the goal is desk latency, so a shared service
-adds cost with no gain
-[ ( ) In a shared store such as Redis ]
+  ( ) In the memory of the application process
+      recommended: the goal is desk latency, so a shared service
+      adds cost with no gain
+  ( ) In a shared store such as Redis
+  ( ) Talk about this one
 
 Q5 What does one lookup ask for?
-[ (*) The loan state of one book copy ]
-    recommended: a return changes one copy, so the write
-invalidates exactly one entry
-[ ( ) All loans of one patron ]
+  (*) The loan state of one book copy
+      recommended: a return changes one copy, so the write
+      invalidates exactly one entry
+  ( ) All loans of one patron
+  ( ) Talk about this one
 
 [ Submit ] 1 answered, 1 skipped
 ```
@@ -64,7 +66,8 @@ Start with `/grilling-pane:grilling <plan>`. Type `/grilling-pane` to show or hi
 `/grilling-pane` also gives the pane keyboard focus. The arrow keys move between buttons. Enter
 presses the focused button. Esc returns focus to the prompt box. A mouse click also presses a
 button. Press an option's button to choose it; press the same button again to clear the choice
-back to no pick. Press `Submit`, at the top or the bottom of the list, to send the round.
+back to no pick. Each question's last option, `Talk about this one`, works the same way. Press
+`Submit`, at the top or the bottom of the list, to send the round.
 
 After you show the pane once, it opens on its own whenever a round arrives, without taking the
 keyboard. Hide it with `/grilling-pane` to stop that.
@@ -80,6 +83,9 @@ Q13: Is the loan cache per user, or one for the whole library?
 Q14: Does an entry expire by time, or on write?
 - By time
 - On write
+Q15: Which store holds the sessions?
+- The application's own memory
+- A shared store such as Redis
 ```
 
 One `Q<n>: <question>` line starts a question; the `- ` lines under it are its options. A
@@ -95,13 +101,19 @@ one line per question:
 Answers (grilling-pane):
 Q13 Is the loan cache per user, or one for the whole library? → Per user
 Q14 Does an entry expire by time, or on write? → (skipped)
+Q15 Which store holds the sessions? → (discuss)
 ```
 
-## What skip means
+## What skip and discuss mean
 
 Submit sends `(skipped)` for a question with no chosen option, naming an answer the person chose
 not to give. This tells it apart from a question the person never saw. Submit sends nothing when
 every question in the round has zero picks. The status line asks for at least one pick first.
+
+Every question also carries a last option, `Talk about this one`, that the pane draws itself; the
+skill never writes it. Picking it sends `(discuss)` in its place. It marks a question where the
+person wants an option the list did not offer, or wants to talk the question through before
+choosing.
 
 ## The transcript is the source of truth
 

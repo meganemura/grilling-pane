@@ -10,6 +10,7 @@ export type OpenQuestion = { question: Question; isDuplicate: boolean }
 
 export const ANSWERS_HEADER = 'Answers (grilling-pane):'
 export const SKIPPED = '(skipped)'
+export const DISCUSS = '(discuss)'
 
 const OPEN_RE = /^```grilling[ \t]*$/
 const CLOSE_RE = /^```[ \t]*$/
@@ -140,12 +141,13 @@ export function openQuestionsOf(messages: readonly SessionMessage[]): OpenQuesti
 }
 
 // The prompt a Submit press sends: the header, then one `Q<n> <text> → <label>` line per
-// question, in the order given, `picks` naming each question's chosen option by its identity.
-export function answersTextOf(questions: readonly Question[], picks: ReadonlyMap<string, number>): string {
+// question, in the order given, `picks` naming each question's chosen option by its identity, an
+// option's index, `'discuss'` (the pane's own extra option, not one the model wrote), or missing
+// or out of range for a skip.
+export function answersTextOf(questions: readonly Question[], picks: ReadonlyMap<string, number | 'discuss'>): string {
   const lines = questions.map((question) => {
-    const pickIndex = picks.get(identityOf(question))
-    const option = pickIndex === undefined ? undefined : question.options[pickIndex]
-    const label = option === undefined ? SKIPPED : option.label
+    const pick = picks.get(identityOf(question))
+    const label = pick === 'discuss' ? DISCUSS : pick === undefined ? SKIPPED : (question.options[pick]?.label ?? SKIPPED)
     return `${answerPrefixOf(question)}${label}`
   })
   return [ANSWERS_HEADER, ...lines].join('\n')

@@ -4,7 +4,7 @@
 import type { SessionMessage } from 'claude-code'
 import { describe, expect, test, tier } from 'claude-code/testing'
 
-import { ANSWERS_HEADER, SKIPPED, answersTextOf, identityOf, openQuestionsOf, questionsOf } from '../hooks/block'
+import { ANSWERS_HEADER, DISCUSS, SKIPPED, answersTextOf, identityOf, openQuestionsOf, questionsOf } from '../hooks/block'
 
 tier('user')
 
@@ -114,6 +114,13 @@ describe('answersTextOf', () => {
     expect(answersTextOf(questions, picks)).toBe(
       [ANSWERS_HEADER, 'Q13 cache is per user, or one for all? → per user', `Q14 expiry is by time, or on write? → ${SKIPPED}`].join('\n'),
     )
+  })
+
+  test('writes "(discuss)" for a pick of `\'discuss\'`, the pane\'s own extra option', () => {
+    const questions = [{ number: 1, text: 'cache is per user, or one for all?', options: [{ label: 'per user' }, { label: 'one for all' }] }]
+    const picks = new Map<string, number | 'discuss'>([[identityOf(questions[0]!), 'discuss']])
+
+    expect(answersTextOf(questions, picks)).toBe([ANSWERS_HEADER, `Q1 cache is per user, or one for all? → ${DISCUSS}`].join('\n'))
   })
 })
 

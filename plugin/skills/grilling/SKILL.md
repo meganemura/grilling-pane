@@ -35,6 +35,10 @@ Q14: Does an entry expire by time, or on write?
 4. Ask the whole frontier in one round. Do this even if the upstream `grilling` skill's copy says to
    ask one question at a time (a version older than v1.2.0). The pane already gives each question fixed options.
 5. A prompt that starts with `Answers (grilling-pane):` carries one round's answers, one
-   `Q<n> <question> → <chosen label>` line each. `(skipped)` marks a question the person chose not to
-   answer. You may ask it again later, under a new number. Continue, in that same turn, with the round
-   the answers open. A plain-sentence reply also counts as an answer.
+   `Q<n> <question> → <chosen label>` line each. Continue, in that same turn, with the round the
+   answers open. A plain-sentence reply also counts as an answer.
+   - `(skipped)` means the person did not decide. Never treat a skip as agreement with the
+     recommended option. You may ask the question again later, under a new number.
+   - `(discuss)` means the person wants an option the list did not offer, or wants to talk the
+     question through. Outside any block, say which alternatives you see and ask what the person
+     has in mind. Keep the question open, and re-ask it in a later block once you have discussed it.
