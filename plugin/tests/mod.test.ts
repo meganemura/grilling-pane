@@ -98,7 +98,7 @@ function world(on: On, options: WorldOptions = {}) {
   on('ui.open', ($, e) => {
     opened.push(e.id)
     openCalls.push({ id: e.id, ...(e.focus ? { focus: e.focus } : {}) })
-    return { value: undefined }
+    return { value: { isPlaced: true } }
   })
   on('ui.close', ($, e) => {
     closed.push(e.id)
