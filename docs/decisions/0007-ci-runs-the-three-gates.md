@@ -1,6 +1,6 @@
 # 0007. CI runs the same three gates, pinned
 
-- Status: accepted
+- Status: accepted; 0011 replaces the Claude Code pin
 - Date: 2026-09-17
 
 ## Context

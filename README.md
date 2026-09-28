@@ -32,7 +32,7 @@ Q5 What does one lookup ask for?
 
 ## Requirements
 
-- Claude Code 2.1.273 or later, with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`
+- Claude Code 2.1.280 or later, with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`
 - The upstream `grilling` skill from mattpocock/skills, v1.2.0 or later:
   `gh skill install mattpocock/skills grilling --agent claude-code`
 
