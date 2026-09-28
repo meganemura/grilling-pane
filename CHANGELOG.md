@@ -3,6 +3,13 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has no
 stable release yet: version numbers may still change shape between releases.
 
+## 0.4.0 - 2026-09-28
+
+### Added
+
+- A comment field under `Talk about this one`, sent after `(discuss)` on the same line.
+- The skill's own reading of a `(discuss)` line with a comment.
+
 ## 0.3.0 - 2026-09-18
 
 ### Added
