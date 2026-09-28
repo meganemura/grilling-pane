@@ -44,6 +44,7 @@ type Host = {
   submit: (text: string) => Promise<{ drop?: string }>
   status: (text: string | undefined) => void
   open: (focus: boolean) => Promise<void>
+  focus: (key: string) => Promise<unknown>
   close: () => Promise<void>
   invalidate: () => void
   log: (text: string) => void
@@ -60,6 +61,9 @@ type State = {
   // A question's pick, by identity: an option's index, or `'discuss'` for the pane's own extra
   // option (see `discussBoxOf`) — never a value the model wrote.
   picks: Map<string, number | 'discuss'>
+  // What the person typed under a discuss pick, by identity. Kept apart from `picks` so that
+  // pressing `Talk about this one` off and on again brings the text back.
+  comments: Map<string, string>
   submitted: Set<string>
   isSubmitting: boolean
 }
@@ -73,6 +77,7 @@ function hostOf($: any): Host {
     status: (text) => $.ui.status(text),
     open: (focus) => $.ui.open({ id: PANE_ID, title: PANE_ID, ...(focus ? { focus: true } : {}) }),
     close: () => $.ui.close({ id: PANE_ID }),
+    focus: (key) => $.ui.focus({ requestId: PANE_ID, key }),
     invalidate: () => $.ui.invalidate('ui.render'),
     log: (text) => $.ui.log(text),
     register: () => $.command.register({ name: COMMAND, description: 'Show or hide the grilling-pane' }),
@@ -149,6 +154,9 @@ async function reparse(state: State): Promise<void> {
     for (const identity of state.picks.keys()) {
       if (!openIdentities.has(identity)) state.picks.delete(identity)
     }
+    for (const identity of state.comments.keys()) {
+      if (!openIdentities.has(identity)) state.comments.delete(identity)
+    }
     host.invalidate()
     await openIfWanted(state)
     updateStatus(state)
@@ -172,12 +180,13 @@ async function submit(state: State, host: Host): Promise<void> {
   state.isSubmitting = true
   try {
     const questions = visible.map((oq) => oq.question)
-    const result = await host.submit(answersTextOf(questions, state.picks))
+    const result = await host.submit(answersTextOf(questions, state.picks, state.comments))
     if (result.drop === undefined) {
       for (const question of questions) {
         const identity = identityOf(question)
         state.submitted.add(identity)
         state.picks.delete(identity)
+        state.comments.delete(identity)
       }
       host.status(undefined)
       host.invalidate()
@@ -195,7 +204,7 @@ async function submit(state: State, host: Host): Promise<void> {
 // options are invisible until it has focus, and the test kit has no way to pick from one
 // (`$.ui.select` does not exist; `$.ui.press` refuses a Select's key). A radio built from
 // `Button` is visible and pickable in both.
-type Ui = Pick<Elements['terminal'], 'Box' | 'Button' | 'Text'>
+type Ui = Pick<Elements['terminal'], 'Box' | 'Button' | 'Input' | 'Text'>
 
 // `(*)`/`( )` and not a Unicode radio glyph: some terminal fonts draw a symbol glyph two cells
 // wide, which pushes the label after it out of line. ASCII draws one cell wide in every font.
@@ -260,11 +269,17 @@ function optionBoxOf(ui: Ui, questionKey: string, index: number, option: Option,
 // tends to read a skip as agreement with whichever option it marked recommended. Drawn by the
 // pane itself, on every question, last — uniform across every question, and not dependent on
 // the model at all: the skill asks it for questions and options, never for this one.
+//
+// A discuss pick also draws a one-line field under it, so the person can say what they have in
+// mind in the same Submit instead of spending a turn on it. The field is optional: an empty one
+// sends a plain `(discuss)`. It is drawn only while the pick holds, so a comment never rides on
+// a question the person answered some other way.
 function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: State, host: Host): RenderElement {
-  const { Button } = ui
+  const { Box, Button, Input } = ui
   const key = `${questionKey}:discuss`
+  const commentKey = `${key}:comment`
   const isSelected = state.picks.get(identity) === 'discuss'
-  return markerRowOf(
+  const row = markerRowOf(
     ui,
     key,
     markerTextOf(ui, isSelected),
@@ -278,9 +293,43 @@ function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: Stat
         else state.picks.set(identity, 'discuss')
         updateStatus(state)
         host.invalidate()
+        // The press is the person's own act, so the pane holds the keys and the ring may move.
+        // A deny (the ring already moved on, or the field is not drawn in time) leaves the ring
+        // on the button, where the person can still reach the field with the arrows.
+        if (!isSelected) host.focus(commentKey).catch((error: unknown) => host.log(`grilling-pane: focus failed: ${messageOf(error)}`))
       },
     }),
   )
+  if (!isSelected) return row
+
+  const keep = (value: string): void => {
+    state.comments.set(identity, value)
+  }
+  return Box({
+    key: `${key}:box`,
+    flexDirection: 'column',
+    children: [
+      row,
+      Box({
+        key: `${commentKey}:box`,
+        paddingLeft: 4,
+        children: [
+          Input({
+            key: commentKey,
+            placeholder: 'what you have in mind (optional)',
+            // Drawn back from state on every redraw, so a redraw for another question's pick does
+            // not wipe what the person typed here.
+            value: state.comments.get(identity) ?? '',
+            // Enter keeps the text and does not send the round: the other questions may still
+            // be unanswered, and Submit is the one place that sends.
+            submitLabel: 'done',
+            onInput: keep,
+            onSubmit: keep,
+          }),
+        ],
+      }),
+    ],
+  })
 }
 
 function questionBoxOf(ui: Ui, index: number, oq: OpenQuestion, state: State, host: Host): RenderElement {
@@ -366,6 +415,7 @@ export function register(on: On) {
     wantsOpen: false,
     open: [],
     picks: new Map(),
+    comments: new Map(),
     submitted: new Set(),
     isSubmitting: false,
   }
@@ -448,7 +498,7 @@ export function register(on: On) {
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId !== PANE_ID || state.host === null) return next(e)
     if (e.surface !== 'terminal') return next(e)
-    const { Box, Button, Text } = await $.ui.resolve(e)
-    return paneOf({ Box, Button, Text }, state, state.host, e.props.bodyColumns, e.props.scroll.bodyRows)
+    const { Box, Button, Input, Text } = await $.ui.resolve(e)
+    return paneOf({ Box, Button, Input, Text }, state, state.host, e.props.bodyColumns, e.props.scroll.bodyRows)
   })
 }

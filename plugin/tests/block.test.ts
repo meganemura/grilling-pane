@@ -124,6 +124,44 @@ describe('answersTextOf', () => {
   })
 })
 
+describe('answersTextOf with comments', () => {
+  const questions = [{ number: 1, text: 'cache is per user, or one for all?', options: [{ label: 'per user' }, { label: 'one for all' }] }]
+  const identity = identityOf(questions[0]!)
+
+  test('writes a discuss comment after "(discuss)" on the same line, folded onto one line', () => {
+    const picks = new Map<string, number | 'discuss'>([[identity, 'discuss']])
+    const comments = new Map([[identity, '  per branch\n\tof the library ']])
+
+    expect(answersTextOf(questions, picks, comments)).toBe(
+      [ANSWERS_HEADER, `Q1 cache is per user, or one for all? → ${DISCUSS} per branch of the library`].join('\n'),
+    )
+  })
+
+  test('writes a plain "(discuss)" for a comment of only whitespace', () => {
+    const picks = new Map<string, number | 'discuss'>([[identity, 'discuss']])
+
+    expect(answersTextOf(questions, picks, new Map([[identity, ' \n ']]))).toBe(
+      [ANSWERS_HEADER, `Q1 cache is per user, or one for all? → ${DISCUSS}`].join('\n'),
+    )
+  })
+
+  test('ignores a comment on a question picked with an option, or skipped', () => {
+    const comments = new Map([[identity, 'per branch']])
+
+    expect(answersTextOf(questions, new Map([[identity, 1]]), comments)).toBe(
+      [ANSWERS_HEADER, 'Q1 cache is per user, or one for all? → one for all'].join('\n'),
+    )
+    expect(answersTextOf(questions, new Map(), comments)).toBe([ANSWERS_HEADER, `Q1 cache is per user, or one for all? → ${SKIPPED}`].join('\n'))
+  })
+
+  test('an answer line with a comment still marks its question answered', () => {
+    const answers = answersTextOf(questions, new Map([[identity, 'discuss']]), new Map([[identity, 'per branch']]))
+    const messages = [assistant(['```grilling', 'Q1: cache is per user, or one for all?', '- per user', '- one for all', '```'].join('\n')), user(answers)]
+
+    expect(openQuestionsOf(messages)).toEqual([])
+  })
+})
+
 describe('openQuestionsOf', () => {
   test('within one round, an answered question drops and a skipped one also counts as answered', () => {
     const messages = [

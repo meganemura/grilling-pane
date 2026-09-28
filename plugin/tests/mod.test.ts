@@ -182,6 +182,21 @@ function buttonsOf(tree: unknown): { key: string; label: string }[] {
   return buttonsOf(children)
 }
 
+// Every Input in a drawn tree, keyed, with the text it is drawn holding.
+function inputsOf(tree: unknown): { key: string; value?: string }[] {
+  if (Array.isArray(tree)) return tree.flatMap(inputsOf)
+  if (typeof tree !== 'object' || tree === null) return []
+  const type: unknown = Reflect.get(tree, 'type')
+  const props: unknown = Reflect.get(tree, 'props')
+  const children: unknown = Reflect.get(tree, 'children')
+  if (type === 'Input') {
+    const key = typeof props === 'object' && props ? Reflect.get(props, 'key') : undefined
+    const value = typeof props === 'object' && props ? Reflect.get(props, 'value') : undefined
+    return [{ key: typeof key === 'string' ? key : '', ...(typeof value === 'string' ? { value } : {}) }]
+  }
+  return inputsOf(children)
+}
+
 // The keyed Box drawn under `key` (a row, or the marker's or the Button's own wrapper inside
 // one), or undefined: read here rather than searched for by content, since a Box carries no
 // text of its own for `textOf` to find it by.
@@ -434,6 +449,69 @@ describe('mod', () => {
     expect(kept.submittedTexts.at(-1)).toBe(
       ['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → (discuss)', 'Q2 配信は週次か日次か? → (skipped)'].join('\n'),
     )
+  })
+
+  test('a discuss pick draws a comment field, and sends the comment on its line', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([])
+
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
+    await settle()
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: '' }])
+
+    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment', text: 'per branch\nof the library', kind: 'change' })
+    // A pick on another question redraws the pane; the field keeps its text.
+    await $.ui.press({ plugin: PLUGIN, key: 'q1:o0:button' })
+    await settle()
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: 'per branch\nof the library' }])
+
+    await $.ui.press({ plugin: PLUGIN, key: 'submit:top:button' })
+    await settle()
+    expect(kept.submittedTexts.at(-1)).toBe(
+      ['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → (discuss) per branch of the library', 'Q2 配信は週次か日次か? → 週次'].join('\n'),
+    )
+  })
+
+  test('Enter in the comment field keeps the text and sends nothing', async ($, on) => {
+    const kept = world(on, { messages: [ONE_QUESTION] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+    await $.ui.render(PANE)
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
+    await settle()
+    await $.ui.render(PANE)
+
+    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment', text: 'per branch' })
+    await settle()
+    expect(kept.submittedTexts).toEqual([])
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: 'per branch' }])
+  })
+
+  test('a comment rides only on a discuss pick, and comes back when the pick does', async ($, on) => {
+    const kept = world(on, { messages: [ONE_QUESTION] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+    await $.ui.render(PANE)
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
+    await settle()
+    await $.ui.render(PANE)
+    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment', text: 'per branch', kind: 'change' })
+
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:o1:button' })
+    await settle()
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([])
+
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
+    await settle()
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: 'per branch' }])
+
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:o1:button' })
+    await settle()
+    await $.ui.press({ plugin: PLUGIN, key: 'submit:top:button' })
+    await settle()
+    expect(kept.submittedTexts.at(-1)).toBe(['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → one for all'].join('\n'))
   })
 
   test('two questions sharing a number both draw "duplicate number"', async ($, on) => {

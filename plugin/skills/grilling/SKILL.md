@@ -44,6 +44,8 @@ Q14: Does an entry expire by time, or on write?
    - `(discuss)` means the person wants an option the list did not offer, or wants to talk the
      question through. Outside any block, say which alternatives you see and ask what the person
      has in mind. Keep the question open, and re-ask it in a later block once you have discussed it.
+   - `(discuss) <comment>` carries the person's own words after the marker. Read the comment as
+     what the person has in mind, and reply to it first. Ask again only for what it leaves open.
    - A typed, plain-text reply answers only the questions it names; every other question of that round
      stays open, answered later in plain text too. Carry each still-open question into the next round
      with the same number and text. This is the one case a number repeats, and it lets the pane's

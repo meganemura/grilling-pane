@@ -69,6 +69,10 @@ button. Press an option's button to choose it; press the same button again to cl
 back to no pick. Each question's last option, `Talk about this one`, works the same way. Press
 `Submit`, at the top or the bottom of the list, to send the round.
 
+Picking `Talk about this one` also shows a one-line field under it, and moves the focus into
+it. Type what you have in mind there; the field is optional. Enter keeps the text and sends
+nothing. Only `Submit` sends the round.
+
 After you show the pane once, it opens on its own whenever a round arrives, without taking the
 keyboard. Hide it with `/grilling-pane` to stop that.
 
@@ -107,7 +111,7 @@ one line per question:
 Answers (grilling-pane):
 Q13 Is the loan cache per user, or one for the whole library? → Per user
 Q14 Does an entry expire by time, or on write? → (skipped)
-Q15 Which store holds the sessions? → (discuss)
+Q15 Which store holds the sessions? → (discuss) Only if it survives a restart
 ```
 
 ## What skip and discuss mean
@@ -119,7 +123,8 @@ every question in the round has zero picks. The status line asks for at least on
 Every question also carries a last option, `Talk about this one`, that the pane draws itself; the
 skill never writes it. Picking it sends `(discuss)` in its place. It marks a question where the
 person wants an option the list did not offer, or wants to talk the question through before
-choosing.
+choosing. Text typed in the field under it follows `(discuss)` on the same line. A line break in
+that text becomes a space, because each answer is one line.
 
 ## The transcript is the source of truth
 

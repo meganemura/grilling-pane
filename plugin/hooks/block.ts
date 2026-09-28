@@ -150,14 +150,32 @@ export function openQuestionsOf(messages: readonly SessionMessage[]): OpenQuesti
     .sort((a, b) => a.question.number - b.question.number)
 }
 
+// A comment folded onto one line: an answer line ends at its newline (`answerLinesOf` reads one
+// line per question), so a pasted line break would cut the comment and leave the rest outside
+// the answer.
+function commentLineOf(comment: string): string {
+  return comment.replace(/\s+/g, ' ').trim()
+}
+
 // The prompt a Submit press sends: the header, then one `Q<n> <text> → <label>` line per
 // question, in the order given, `picks` naming each question's chosen option by its identity, an
 // option's index, `'discuss'` (the pane's own extra option, not one the model wrote), or missing
-// or out of range for a skip.
-export function answersTextOf(questions: readonly Question[], picks: ReadonlyMap<string, number | 'discuss'>): string {
+// or out of range for a skip. `comments` holds, by identity, what the person typed under a
+// discuss pick; it rides after `(discuss)` on the same line, and a pick of an option or a skip
+// ignores it.
+export function answersTextOf(
+  questions: readonly Question[],
+  picks: ReadonlyMap<string, number | 'discuss'>,
+  comments: ReadonlyMap<string, string> = new Map(),
+): string {
   const lines = questions.map((question) => {
-    const pick = picks.get(identityOf(question))
-    const label = pick === 'discuss' ? DISCUSS : pick === undefined ? SKIPPED : (question.options[pick]?.label ?? SKIPPED)
+    const identity = identityOf(question)
+    const pick = picks.get(identity)
+    if (pick === 'discuss') {
+      const comment = commentLineOf(comments.get(identity) ?? '')
+      return `${answerPrefixOf(question)}${comment === '' ? DISCUSS : `${DISCUSS} ${comment}`}`
+    }
+    const label = pick === undefined ? SKIPPED : (question.options[pick]?.label ?? SKIPPED)
     return `${answerPrefixOf(question)}${label}`
   })
   return [ANSWERS_HEADER, ...lines].join('\n')
