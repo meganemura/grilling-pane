@@ -70,8 +70,9 @@ back to no pick. Each question's last option, `Talk about this one`, works the s
 `Submit`, at the top or the bottom of the list, to send the round.
 
 Picking `Talk about this one` also shows a one-line field under it, and moves the focus into
-it. Type what you have in mind there; the field is optional. Enter keeps the text and sends
-nothing. Only `Submit` sends the round.
+it. Type what you have in mind there; the field is optional. Enter keeps the text, sends
+nothing, and moves the focus to the next question, or to the bottom `Submit` after the last
+question. Only `Submit` sends the round.
 
 After you show the pane once, it opens on its own whenever a round arrives, without taking the
 keyboard. Hide it with `/grilling-pane` to stop that.

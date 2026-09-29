@@ -281,7 +281,7 @@ function optionBoxOf(ui: Ui, questionKey: string, index: number, option: Option,
 // mind in the same Submit instead of spending a turn on it. The field is optional: an empty one
 // sends a plain `(discuss)`. It is drawn only while the pick holds, so a comment never rides on
 // a question the person answered some other way.
-function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: State, host: Host): RenderElement {
+function discussBoxOf(ui: Ui, questionKey: string, identity: string, nextKey: string, state: State, host: Host): RenderElement {
   const { Box, Button, Input } = ui
   const key = `${questionKey}:discuss`
   const commentKeyOf = (enters: number): string => `${key}:comment:${enters}`
@@ -317,14 +317,15 @@ function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: Stat
   // `value` the hook draws until the hook draws a different one (as Claude Code 2.1.284's own
   // terminal Input is written).
   // Redrawing the same `value` under the same key would leave the field empty, though the text
-  // is still in state. A fresh key has no text of its own, so the field shows `value` again; the
-  // ring then moves to the new key, since the old one is no longer drawn.
+  // is still in state. A fresh key has no text of its own, so the field shows `value` again.
+  //
+  // The ring then leaves the field for `nextKey`, as Enter does in a form. With the ring still in
+  // the field, Enter changed nothing on screen, and a person could not tell the text was kept.
   const keepOnEnter = (value: string): void => {
     keep(value)
-    const enters = (state.commentEnters.get(identity) ?? 0) + 1
-    state.commentEnters.set(identity, enters)
+    state.commentEnters.set(identity, (state.commentEnters.get(identity) ?? 0) + 1)
     host.invalidate()
-    host.focus(commentKeyOf(enters)).catch((error: unknown) => host.log(`grilling-pane: focus failed: ${messageOf(error)}`))
+    host.focus(nextKey).catch((error: unknown) => host.log(`grilling-pane: focus failed: ${messageOf(error)}`))
   }
   return Box({
     key: `${key}:box`,
@@ -353,7 +354,9 @@ function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: Stat
   })
 }
 
-function questionBoxOf(ui: Ui, index: number, oq: OpenQuestion, state: State, host: Host): RenderElement {
+// `nextKey` is where Enter in this question's comment field sends the ring: the next question's
+// first option, or the bottom Submit after the last question.
+function questionBoxOf(ui: Ui, index: number, oq: OpenQuestion, nextKey: string, state: State, host: Host): RenderElement {
   const { Box, Text } = ui
   const key = `q${index}`
   const { question, isDuplicate } = oq
@@ -361,7 +364,7 @@ function questionBoxOf(ui: Ui, index: number, oq: OpenQuestion, state: State, ho
   const children: RenderElement[] = [Text({ bold: true, color: QUESTION_COLOR, children: `Q${question.number} ${question.text}` })]
   if (isDuplicate) children.push(Text({ color: 'yellow', children: 'duplicate number' }))
   const optionBoxes = question.options.map((option, optionIndex) => optionBoxOf(ui, key, optionIndex, option, identity, state, host))
-  optionBoxes.push(discussBoxOf(ui, key, identity, state, host))
+  optionBoxes.push(discussBoxOf(ui, key, identity, nextKey, state, host))
   children.push(Box({ key: `${key}:options`, flexDirection: 'column', paddingLeft: 2, children: optionBoxes }))
   return Box({ key, flexDirection: 'column', children })
 }
@@ -422,7 +425,9 @@ function paneOf(ui: Ui, state: State, host: Host, bodyColumns: number, bodyRows:
         key: 'questions',
         flexDirection: 'column',
         rowGap: 1,
-        children: visible.map((oq, index) => questionBoxOf(ui, index, oq, state, host)),
+        children: visible.map((oq, index) =>
+          questionBoxOf(ui, index, oq, index + 1 < visible.length ? `q${index + 1}:o0:button` : 'submit:bottom:button', state, host),
+        ),
       }),
       submitRowOf(ui, 'submit:bottom', answered, skipped, state, host),
     ],

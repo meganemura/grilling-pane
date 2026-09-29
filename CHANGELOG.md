@@ -3,6 +3,12 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has no
 stable release yet: version numbers may still change shape between releases.
 
+## Unreleased
+
+### Changed
+
+- Enter in the comment field moves the focus to the next question, or to the bottom `Submit`.
+
 ## 0.4.1 - 2026-09-29
 
 ### Fixed

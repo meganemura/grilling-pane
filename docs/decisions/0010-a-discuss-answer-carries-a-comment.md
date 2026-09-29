@@ -21,8 +21,11 @@ a plain `(discuss)`.
   open, and `Submit` stays the one control that sends.
 - After Enter, the terminal empties the field for its key. That empty text wins over the
   `value` the pane draws, until the pane draws a different `value`. So each Enter gives the
-  field a fresh key, `q<i>:discuss:comment:<n>`, and moves the focus ring onto it. The new key
-  has no text of its own, and the field shows the kept text again.
+  field a fresh key, `q<i>:discuss:comment:<n>`. The new key has no text of its own, and the
+  field shows the kept text again.
+- Enter then moves the focus ring out of the field: to the next question's first option, or to
+  the bottom `Submit` after the last question. With the ring still in the field, Enter changed
+  nothing on screen, and a person could not tell that the pane kept the text.
 - The pane folds every run of whitespace in the comment into one space. An answer line ends at
   its line break, so a pasted break would cut the comment off the answer.
 - The pane keeps the comment apart from the pick. A person who picks another option and then
