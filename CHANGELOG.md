@@ -3,6 +3,12 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has no
 stable release yet: version numbers may still change shape between releases.
 
+## 0.4.1 - 2026-09-29
+
+### Fixed
+
+- Enter in the `Talk about this one` comment field no longer empties the field.
+
 ## 0.4.0 - 2026-09-28
 
 ### Added
