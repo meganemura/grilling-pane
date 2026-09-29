@@ -3,7 +3,7 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has no
 stable release yet: version numbers may still change shape between releases.
 
-## Unreleased
+## 0.4.2 - 2026-09-29
 
 ### Changed
 
