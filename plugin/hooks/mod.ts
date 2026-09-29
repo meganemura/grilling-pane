@@ -64,6 +64,9 @@ type State = {
   // What the person typed under a discuss pick, by identity. Kept apart from `picks` so that
   // pressing `Talk about this one` off and on again brings the text back.
   comments: Map<string, string>
+  // How many times Enter kept the comment field's text, by identity: part of the field's key
+  // (see `discussBoxOf` for why each Enter needs a fresh key).
+  commentEnters: Map<string, number>
   submitted: Set<string>
   isSubmitting: boolean
 }
@@ -157,6 +160,9 @@ async function reparse(state: State): Promise<void> {
     for (const identity of state.comments.keys()) {
       if (!openIdentities.has(identity)) state.comments.delete(identity)
     }
+    for (const identity of state.commentEnters.keys()) {
+      if (!openIdentities.has(identity)) state.commentEnters.delete(identity)
+    }
     host.invalidate()
     await openIfWanted(state)
     updateStatus(state)
@@ -187,6 +193,7 @@ async function submit(state: State, host: Host): Promise<void> {
         state.submitted.add(identity)
         state.picks.delete(identity)
         state.comments.delete(identity)
+        state.commentEnters.delete(identity)
       }
       host.status(undefined)
       host.invalidate()
@@ -277,7 +284,8 @@ function optionBoxOf(ui: Ui, questionKey: string, index: number, option: Option,
 function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: State, host: Host): RenderElement {
   const { Box, Button, Input } = ui
   const key = `${questionKey}:discuss`
-  const commentKey = `${key}:comment`
+  const commentKeyOf = (enters: number): string => `${key}:comment:${enters}`
+  const commentKey = commentKeyOf(state.commentEnters.get(identity) ?? 0)
   const isSelected = state.picks.get(identity) === 'discuss'
   const row = markerRowOf(
     ui,
@@ -305,13 +313,26 @@ function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: Stat
   const keep = (value: string): void => {
     state.comments.set(identity, value)
   }
+  // After Enter, the terminal empties the field for its key, and that empty text wins over the
+  // `value` the hook draws until the hook draws a different one (as Claude Code 2.1.284's own
+  // terminal Input is written).
+  // Redrawing the same `value` under the same key would leave the field empty, though the text
+  // is still in state. A fresh key has no text of its own, so the field shows `value` again; the
+  // ring then moves to the new key, since the old one is no longer drawn.
+  const keepOnEnter = (value: string): void => {
+    keep(value)
+    const enters = (state.commentEnters.get(identity) ?? 0) + 1
+    state.commentEnters.set(identity, enters)
+    host.invalidate()
+    host.focus(commentKeyOf(enters)).catch((error: unknown) => host.log(`grilling-pane: focus failed: ${messageOf(error)}`))
+  }
   return Box({
     key: `${key}:box`,
     flexDirection: 'column',
     children: [
       row,
       Box({
-        key: `${commentKey}:box`,
+        key: `${key}:comment:box`,
         paddingLeft: 4,
         children: [
           Input({
@@ -324,7 +345,7 @@ function discussBoxOf(ui: Ui, questionKey: string, identity: string, state: Stat
             // be unanswered, and Submit is the one place that sends.
             submitLabel: 'done',
             onInput: keep,
-            onSubmit: keep,
+            onSubmit: keepOnEnter,
           }),
         ],
       }),
@@ -416,6 +437,7 @@ export function register(on: On) {
     open: [],
     picks: new Map(),
     comments: new Map(),
+    commentEnters: new Map(),
     submitted: new Set(),
     isSubmitting: false,
   }

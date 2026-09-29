@@ -459,13 +459,13 @@ describe('mod', () => {
 
     await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
     await settle()
-    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: '' }])
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment:0', value: '' }])
 
-    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment', text: 'per branch\nof the library', kind: 'change' })
+    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment:0', text: 'per branch\nof the library', kind: 'change' })
     // A pick on another question redraws the pane; the field keeps its text.
     await $.ui.press({ plugin: PLUGIN, key: 'q1:o0:button' })
     await settle()
-    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: 'per branch\nof the library' }])
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment:0', value: 'per branch\nof the library' }])
 
     await $.ui.press({ plugin: PLUGIN, key: 'submit:top:button' })
     await settle()
@@ -474,7 +474,9 @@ describe('mod', () => {
     )
   })
 
-  test('Enter in the comment field keeps the text and sends nothing', async ($, on) => {
+  // The terminal empties a field for its key after Enter, and the test kit does not; so what is
+  // checked here is the fresh key the field takes, which is what gets past the emptied text.
+  test('Enter in the comment field keeps the text under a fresh key, and sends nothing', async ($, on) => {
     const kept = world(on, { messages: [ONE_QUESTION] })
     await $.session.start(SESSION)
     await $.command.run(RUN)
@@ -483,10 +485,20 @@ describe('mod', () => {
     await settle()
     await $.ui.render(PANE)
 
-    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment', text: 'per branch' })
+    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment:0', text: 'per branch' })
     await settle()
     expect(kept.submittedTexts).toEqual([])
-    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: 'per branch' }])
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment:1', value: 'per branch' }])
+
+    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment:1', text: 'per branch, or per desk' })
+    await settle()
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment:2', value: 'per branch, or per desk' }])
+
+    await $.ui.press({ plugin: PLUGIN, key: 'submit:top:button' })
+    await settle()
+    expect(kept.submittedTexts.at(-1)).toBe(
+      ['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → (discuss) per branch, or per desk'].join('\n'),
+    )
   })
 
   test('a comment rides only on a discuss pick, and comes back when the pick does', async ($, on) => {
@@ -497,7 +509,7 @@ describe('mod', () => {
     await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
     await settle()
     await $.ui.render(PANE)
-    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment', text: 'per branch', kind: 'change' })
+    await $.ui.input({ plugin: PLUGIN, key: 'q0:discuss:comment:0', text: 'per branch', kind: 'change' })
 
     await $.ui.press({ plugin: PLUGIN, key: 'q0:o1:button' })
     await settle()
@@ -505,7 +517,7 @@ describe('mod', () => {
 
     await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
     await settle()
-    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment', value: 'per branch' }])
+    expect(inputsOf(await $.ui.render(PANE))).toEqual([{ key: 'q0:discuss:comment:0', value: 'per branch' }])
 
     await $.ui.press({ plugin: PLUGIN, key: 'q0:o1:button' })
     await settle()
