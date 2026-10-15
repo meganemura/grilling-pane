@@ -33,6 +33,7 @@ Q5 What does one lookup ask for?
 ## Requirements
 
 - Claude Code 2.1.280 or later, with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`
+- A terminal session, or the Code tab of Claude Code Desktop. Print mode (`-p`) has no pane.
 - The upstream `grilling` skill from mattpocock/skills, v1.2.0 or later:
   `gh skill install mattpocock/skills grilling --agent claude-code`
 
@@ -56,6 +57,25 @@ To set `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` for each session, add it to the `en
 {
   "env": {
     "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1"
+  }
+}
+```
+
+### Claude Code Desktop
+
+The pane also draws in the Code tab of Claude Code Desktop. A plugin installed at the user
+scope with the commands above loads there too. `/plugin` does not run in the desktop app: to
+install from the app, click + beside the prompt box, then Plugins, then Add marketplace with
+`meganemura/grilling-pane`, then Add plugin.
+
+The desktop app takes no `--plugin-dir`. To develop against a checkout there, set these in the
+`env` of `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_PLUGIN_DIRS": "/path/to/grilling-pane/plugin",
+    "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
   }
 }
 ```

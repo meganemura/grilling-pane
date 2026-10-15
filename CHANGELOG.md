@@ -3,6 +3,13 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has no
 stable release yet: version numbers may still change shape between releases.
 
+## Unreleased
+
+### Added
+
+- The pane draws in the Code tab of Claude Code Desktop. Before, the desktop showed the pane
+  with nothing in it.
+
 ## 0.4.2 - 2026-09-29
 
 ### Changed

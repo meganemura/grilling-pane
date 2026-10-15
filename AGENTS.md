@@ -44,7 +44,8 @@ use invented plans and questions, never a real project's.
   that repeats the question text. Nothing lives only in the pane.
 - Every `Pane` element prop must be one the surface declares. One unknown
   prop drops the whole tree without a message. Type the element constructors
-  with `Elements['terminal']` so the compiler catches it.
+  with `Elements['terminal' | 'desktop']`, the two surfaces the pane draws
+  on, so the compiler catches it.
 - Tests are `plugin/tests/*.test.ts`, run with
   `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test plugin`. They stub
   `session.messages`, `prompt.submit`, `ui.status` and `store`. The block
