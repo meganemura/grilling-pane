@@ -4,7 +4,18 @@
 import type { SessionMessage } from 'claude-code'
 import { describe, expect, test, tier } from 'claude-code/testing'
 
-import { ANSWERS_HEADER, DISCUSS, SKIPPED, answersTextOf, identityOf, openQuestionsOf, questionsOf } from '../hooks/block'
+import {
+  ANSWERS_HEADER,
+  DISCUSS,
+  SKIPPED,
+  answersTextOf,
+  dropsOf,
+  historyOf,
+  identityOf,
+  oneAnswerTextOf,
+  openQuestionsOf,
+  questionsOf,
+} from '../hooks/block'
 
 tier('user')
 
@@ -255,5 +266,72 @@ describe('openQuestionsOf', () => {
     ]
 
     expect(openQuestionsOf(messages).map((oq) => oq.question.number)).toEqual([1, 2])
+  })
+})
+
+describe('dropsOf', () => {
+  test('reads each Drop line inside a block, with or without a reason, and nothing outside', () => {
+    const text = ['Drop Q9: outside a block', '```grilling', 'Drop Q2: the cache is per user', 'Drop Q3', 'Q4: expiry?', '- by time', '- on write', '```'].join('\n')
+    expect([...dropsOf(text)]).toEqual([
+      [2, 'the cache is per user'],
+      [3, ''],
+    ])
+    expect(questionsOf(text).map((question) => question.number)).toEqual([4])
+  })
+
+  test('a message with only Drop lines is a round, and closes the earlier one', () => {
+    const messages: SessionMessage[] = [
+      assistant(['```grilling', 'Q1: cache scope?', '- per user', '- shared', '```'].join('\n')),
+      assistant(['```grilling', 'Drop Q1: not needed', '```'].join('\n')),
+    ]
+    expect(openQuestionsOf(messages)).toEqual([])
+  })
+})
+
+describe('historyOf', () => {
+  const round1 = assistant(['```grilling', 'Q1: cache scope?', '- per user', '- shared', 'Q2: report cadence?', '- weekly', '- daily', 'Q3: expiry?', '- by time', '- on write', '```'].join('\n'))
+  const answer1 = user([ANSWERS_HEADER, 'Q1 cache scope? → per user', 'Still open (grilling-pane): Q2, Q3'].join('\n'))
+  const round2 = assistant(['```grilling', 'Drop Q2: a per-user cache has no shared report', 'Q3: expiry?', '- by time', '- on write', 'Q4: store?', '- memory', '- Redis', '```'].join('\n'))
+
+  test('keeps every question in number order, with an answered, an open, a dropped and a new one', () => {
+    expect(historyOf([round1, answer1, round2]).map((entry) => [entry.question.number, entry.status, entry.answer ?? entry.reason])).toEqual([
+      [1, 'answered', 'per user'],
+      [2, 'dropped', 'a per-user cache has no shared report'],
+      [3, 'open', undefined],
+      [4, 'open', undefined],
+    ])
+  })
+
+  test('a question the latest round does not ask again is dropped with no reason', () => {
+    const round = assistant(['```grilling', 'Q4: store?', '- memory', '- Redis', '```'].join('\n'))
+    expect(historyOf([round1, answer1, round]).map((entry) => [entry.question.number, entry.status, entry.reason])).toEqual([
+      [1, 'answered', undefined],
+      [2, 'dropped', undefined],
+      [3, 'dropped', undefined],
+      [4, 'open', undefined],
+    ])
+  })
+
+  test('a question carried forward is one entry, and an answer in a later message closes it', () => {
+    const answer2 = user([ANSWERS_HEADER, 'Q3 expiry? → on write'].join('\n'))
+    const history = historyOf([round1, answer1, round2, answer2])
+    expect(history.filter((entry) => entry.question.number === 3)).toEqual([
+      { question: { number: 3, text: 'expiry?', options: [{ label: 'by time' }, { label: 'on write' }] }, status: 'answered', answer: 'on write', isDuplicate: false },
+    ])
+  })
+})
+
+describe('oneAnswerTextOf', () => {
+  const q1 = { number: 1, text: 'cache scope?', options: [{ label: 'per user' }, { label: 'shared' }] }
+  const q2 = { number: 2, text: 'report cadence?', options: [{ label: 'weekly' }, { label: 'daily' }] }
+
+  test('sends one answer line and names the questions still open', () => {
+    expect(oneAnswerTextOf(q1, 1, '', [q2])).toBe([ANSWERS_HEADER, 'Q1 cache scope? → shared', 'Still open (grilling-pane): Q2'].join('\n'))
+  })
+
+  test('the Still open line is not read as an answer', () => {
+    const messages = [assistant(['```grilling', 'Q1: cache scope?', '- per user', '- shared', 'Q2: report cadence?', '- weekly', '- daily', '```'].join('\n')), user(oneAnswerTextOf(q1, 'discuss', 'per desk', [q2]))]
+    expect(openQuestionsOf(messages).map((oq) => oq.question.number)).toEqual([2])
+    expect(historyOf(messages)[0]?.answer).toBe(`${DISCUSS} per desk`)
   })
 })
