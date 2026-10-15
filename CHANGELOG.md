@@ -9,6 +9,17 @@ stable release yet: version numbers may still change shape between releases.
 
 - The pane draws in the Code tab of Claude Code Desktop. Before, the desktop showed the pane
   with nothing in it.
+- On the desktop, each press sends one answer at once, with a `Still open (grilling-pane):` line
+  that names the questions not answered yet. Claude follows up on each answer in its own turn.
+- On the desktop, the pane keeps every question of the conversation. A new round adds rows at the
+  end. A question that Claude dropped is grey, and has no buttons.
+- `Drop Q<n>: <reason>` in a `grilling` block. The skill writes it for a question that an answer
+  made unnecessary.
+
+### Fixed
+
+- On the desktop, the pane no longer clears the text in a comment field when it draws again, and
+  the rows no longer move when a round arrives.
 
 ## 0.4.2 - 2026-09-29
 

@@ -97,6 +97,42 @@ question. Only `Submit` sends the round.
 After you show the pane once, it opens on its own whenever a round arrives, without taking the
 keyboard. Hide it with `/grilling-pane` to stop that.
 
+### On Claude Code Desktop
+
+On the desktop, the pane works one answer at a time. There is no `Submit`:
+
+- Press an option to send that answer at once. Claude replies to it in a short turn and writes
+  the next round: the questions still open, the follow-up questions that the answer opens, and the
+  questions that the answer made unnecessary.
+- You can answer other questions while Claude writes. Each press is one more prompt, and it waits
+  for its turn.
+- Press `Talk about this one` to show a field under it. Enter in the field sends `(discuss)` with
+  your text.
+- The pane keeps every question of the conversation in number order. A new round adds rows at the
+  end, so the rows above do not move. An answered question shows its answer. A question that Claude
+  dropped is grey, with its reason, and has no buttons.
+- The pane keeps the text in a field while it draws again for a new round or another answer.
+
+A one-answer prompt looks like this:
+
+```
+Answers (grilling-pane):
+Q13 Is the loan cache per user, or one for the whole library? → Per user
+Still open (grilling-pane): Q14, Q15
+```
+
+To say that a question is not necessary now, the skill writes a `Drop` line in the block:
+
+```grilling
+Drop Q15: a per-user cache has no shared store
+Q14: Does an entry expire by time, or on write?
+- By time
+- On write
+Q16: Does a return clear the entry?
+- Yes
+- No
+```
+
 ## Typing while a round is open
 
 Your typed message goes through as it is; the plugin never changes it. Claude reads the

@@ -1,6 +1,6 @@
 # 0012. The pane draws on Claude Code Desktop
 
-- Status: accepted
+- Status: accepted; on the desktop, 0013 replaces the shared tree
 - Date: 2026-10-15
 
 ## Context
