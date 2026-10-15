@@ -63,6 +63,8 @@ type WorldOptions = {
   // Leaves `prompt.submit` with nothing answering it, so `host.submit` rejects for real (the
   // engine's own "no implementation for prompt.submit") instead of a stub simulating a failure.
   noSubmit?: boolean
+  // Leaves `ui.invalidate` to the kit, so a mounted drawing follows the module's redraws.
+  realInvalidate?: boolean
 }
 
 // The world beneath the module: a transcript (replaceable, for `turn.complete`), a store seeded
@@ -79,6 +81,7 @@ function world(on: On, options: WorldOptions = {}) {
   let messages: SessionMessage[] = options.messages ?? []
 
   on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
   on('session.messages', () => ({ value: messages }))
 
@@ -104,7 +107,7 @@ function world(on: On, options: WorldOptions = {}) {
     closed.push(e.id)
     return { value: undefined }
   })
-  on('ui.invalidate', () => ({ value: undefined }))
+  if (!options.realInvalidate) on('ui.invalidate', () => ({ value: undefined }))
   on('ui.log', ($, e) => {
     logged.push(e.text)
     return { value: undefined }
@@ -633,44 +636,176 @@ describe('mod', () => {
   })
 })
 
-// Claude Code Desktop draws the pane too. The same session, driven on the desktop surface, must
-// draw the same tree and send the same answers as on the terminal.
-const DESKTOP_PANE: RenderInput<'Pane'> = { ...PANE, surface: 'desktop' }
+// Claude Code Desktop draws the pane as one `Client` (pane-client.ts). A press there sends one
+// answer at once. The tests mount the pane on the desktop surface and act inside the `Client`.
+const CLIENT = 'grilling-pane:client'
+const DESKTOP_MOUNT = { plugin: PLUGIN, surface: 'desktop', component: 'Pane', requestId: PLUGIN, props: PANE.props } as const
 
-// A drawn tree as JSON, less each element's `press` handle: the engine numbers handles per
-// render, so two renders of one tree differ there and nowhere else.
-function shapeOf(tree: unknown): string {
-  return JSON.stringify(tree, (key, value: unknown) => (key === 'press' ? undefined : value))
+// The heading texts the `Client` draws, in order.
+async function headingsOf(ui: { findAll: (q: { type?: string; text?: RegExp; in?: string }) => Promise<{ text: string }[]> }): Promise<string[]> {
+  return (await ui.findAll({ type: 'Text', text: /^Q\d+ /, in: CLIENT })).map((found) => found.text)
 }
 
+// A second round about the made-up cache: it answers nothing itself, carries Q2 forward, and
+// asks a follow-up.
+const FOLLOW_UP: SessionMessage = {
+  role: 'assistant',
+  text: ['Per user, then.', '```grilling', 'Q2: 配信は週次か日次か?', '- 週次', '- 日次', 'Q3: does an entry expire by time?', '- yes', '- no', '```'].join('\n'),
+  toolUses: [],
+}
+
+// A second round that says Q2 is not necessary now.
+const DROPS_Q2: SessionMessage = {
+  role: 'assistant',
+  text: ['```grilling', 'Drop Q2: a per-user cache has no shared report', 'Q3: does an entry expire by time?', '- yes', '- no', '```'].join('\n'),
+  toolUses: [],
+}
+
+const ANSWER_Q1 = ['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → per user', 'Still open (grilling-pane): Q2'].join('\n')
+
 describe('mod on the desktop surface', () => {
-  test('the desktop draws the same tree as the terminal, the comment field included', async ($, on) => {
-    world(on, { messages: [TWO_QUESTIONS] })
-    await $.session.start(SESSION)
-    await $.command.run(RUN)
-    await $.ui.render(PANE)
-    await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
-    await settle()
-
-    const terminal = await $.ui.render(PANE)
-    const desktop = await $.ui.render(DESKTOP_PANE)
-    expect(inputsOf(desktop)).toEqual([{ key: 'q0:discuss:comment:0', value: '' }])
-    expect(shapeOf(desktop)).toBe(shapeOf(terminal))
-  })
-
-  test('picking one option and pressing Submit on the desktop sends the expected text', async ($, on) => {
-    const kept = world(on, { messages: [TWO_QUESTIONS] })
+  test('the desktop draws one Client with every open question and its options', async ($, on) => {
+    world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
     await $.session.start({ ...SESSION, surface: 'desktop' })
     await $.command.run(RUN)
-    await $.ui.render(DESKTOP_PANE)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
 
-    await $.ui.press({ plugin: PLUGIN, key: 'q0:o0:button' })
-    await $.ui.press({ plugin: PLUGIN, key: 'submit:top:button' })
+    expect((await ui.drawn()).type).toBe('Client')
+    expect(await headingsOf(ui)).toEqual(['Q1 cache is per user, or one for all?', 'Q2 配信は週次か日次か?'])
+    expect((await ui.findAll({ type: 'Button', in: CLIENT })).map((found) => found.text)).toEqual([
+      'per user',
+      'one for all',
+      'Talk about this one',
+      '週次',
+      '日次',
+      'Talk about this one',
+    ])
+  })
+
+  test('one press sends that answer at once and names the questions still open', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    await ui.press({ key: 'q1:o0' })
     await settle()
 
-    expect(kept.submittedTexts.at(-1)).toBe(
-      ['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → per user', 'Q2 配信は週次か日次か? → (skipped)'].join('\n'),
-    )
-    expect(textOf(await $.ui.render(DESKTOP_PANE))).toBe('no open questions')
+    expect(kept.submittedTexts).toEqual([ANSWER_Q1])
+    // Q1 shows what was sent and has no Button now; Q2 is still pressable.
+    expect(await ui.find({ key: 'q1:o0', in: CLIENT })).toBeUndefined()
+    expect((await ui.find({ key: 'q1:answer', in: CLIENT }))?.text).toBe('→ per user  (sent)')
+    expect(await ui.find({ key: 'q2:o1', in: CLIENT })).toBeDefined()
+
+    await ui.press({ key: 'q2:o1' })
+    await settle()
+    expect(kept.submittedTexts.at(-1)).toBe(['Answers (grilling-pane):', 'Q2 配信は週次か日次か? → 日次'].join('\n'))
+  })
+
+  test('a repeated post of an answer already sent sends nothing more', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    const answer = { id: '1\ncache is per user, or one for all?', pick: 0, comment: '' }
+    await ui.post({ answers: [answer] })
+    await ui.post({ answers: [answer] })
+    await settle()
+    expect(kept.submittedTexts).toEqual([ANSWER_Q1])
+  })
+
+  test('a new round adds rows under the earlier ones, and the answered question stays in place', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    await ui.press({ key: 'q1:o0' })
+    await settle()
+    kept.setMessages([TWO_QUESTIONS, { role: 'user', text: ANSWER_Q1, toolUses: [] }, FOLLOW_UP])
+    await $.turn.complete(TURN_COMPLETE)
+    await settle()
+
+    expect(await headingsOf(ui)).toEqual(['Q1 cache is per user, or one for all?', 'Q2 配信は週次か日次か?', 'Q3 does an entry expire by time?'])
+    expect((await ui.find({ key: 'q1:answer', in: CLIENT }))?.text).toBe('→ per user')
+    expect(await ui.find({ key: 'q3:o0', in: CLIENT })).toBeDefined()
+  })
+
+  test('text typed in a comment field stays through a new round', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    await ui.press({ key: 'q2:discuss' })
+    await ui.input({ key: 'q2:comment', text: 'only if the team', kind: 'change' })
+    kept.setMessages([TWO_QUESTIONS, { role: 'user', text: ANSWER_Q1, toolUses: [] }, FOLLOW_UP])
+    await $.turn.complete(TURN_COMPLETE)
+    await settle()
+
+    expect((await ui.find({ type: 'Input', key: 'q2:comment', in: CLIENT }))?.props.value).toBe('only if the team')
+  })
+
+  test('Enter in a comment field sends a discuss answer with the text', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    await ui.press({ key: 'q2:discuss' })
+    await ui.input({ key: 'q2:comment', text: 'only if\nthe team asks' })
+    await settle()
+
+    expect(kept.submittedTexts).toEqual([
+      ['Answers (grilling-pane):', 'Q2 配信は週次か日次か? → (discuss) only if the team asks', 'Still open (grilling-pane): Q1'].join('\n'),
+    ])
+  })
+
+  test('a question the new round drops is grey and has no Button', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    await ui.press({ key: 'q1:o0' })
+    await settle()
+    kept.setMessages([TWO_QUESTIONS, { role: 'user', text: ANSWER_Q1, toolUses: [] }, DROPS_Q2])
+    await $.turn.complete(TURN_COMPLETE)
+    await settle()
+
+    expect(await headingsOf(ui)).toEqual(['Q1 cache is per user, or one for all?', 'Q2 配信は週次か日次か?', 'Q3 does an entry expire by time?'])
+    expect(await ui.find({ type: 'Button', key: 'q2:o0', in: CLIENT })).toBeUndefined()
+    expect(await ui.find({ type: 'Button', key: 'q2:discuss', in: CLIENT })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: 'not necessary now: a per-user cache has no shared report', in: CLIENT })).toBeDefined()
+    const heading = await ui.find({ type: 'Text', text: 'Q2 配信は週次か日次か?', in: CLIENT })
+    expect(heading?.props.dimColor).toBe(true)
+    expect(heading?.props.strikethrough).toBe(true)
+  })
+
+  test('a dropped submit puts the question back to open', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS], submit: () => ({ drop: 'busy' }), realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    await ui.press({ key: 'q1:o0' })
+    await settle()
+    expect(kept.statuses.at(-1)).toBe('grilling-pane: the answer to Q1 was not sent: busy')
+    expect(await ui.find({ type: 'Button', key: 'q1:o0', in: CLIENT })).toBeDefined()
+  })
+
+  test('the status row says Claude is writing while a turn runs', async ($, on) => {
+    world(on, { messages: [TWO_QUESTIONS], realInvalidate: true })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    const ui = await $.ui.mount(DESKTOP_MOUNT)
+
+    await $.turn.start({ text: 'x', turnId: 't1' })
+    await settle()
+    expect(await ui.find({ type: 'Text', text: /Claude is writing/, in: CLIENT })).toBeDefined()
+    await $.turn.complete(TURN_COMPLETE)
+    await settle()
+    expect(await ui.find({ type: 'Text', text: /Claude is writing/, in: CLIENT })).toBeUndefined()
   })
 })
