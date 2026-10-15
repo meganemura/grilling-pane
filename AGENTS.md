@@ -17,6 +17,10 @@ question the person did not answer is submitted as skipped.
 The purpose is fewer turns. The person answers a batch at once instead of
 one question per turn.
 
+On Claude Code Desktop the pane is one `Client` (`plugin/hooks/pane-client.ts`)
+instead. There, each press sends one answer at once, and the pane keeps every
+question of the conversation in place. See `docs/decisions/0013`.
+
 The plugin lives in `plugin/`. There is no build step and no runtime package
 dependency.
 
