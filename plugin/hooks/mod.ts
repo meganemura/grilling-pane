@@ -18,10 +18,14 @@
 // state alone and never reads the transcript itself.
 
 import type { Elements, On, RenderElement, SessionMessage } from 'claude-code'
-import { ANSWERS_HEADER, answersTextOf, identityOf, openQuestionsOf } from './block'
-import type { OpenQuestion, Option } from './block'
+import { ANSWERS_HEADER, answersTextOf, historyOf, identityOf, oneAnswerTextOf, openQuestionsOf } from './block'
+import type { HistoryEntry, OpenQuestion, Option } from './block'
+import type { PaneClientEntry, PaneClientProps } from './pane-client'
 
 const PANE_ID = 'grilling-pane'
+// The key of the desktop pane's one `Client`. It never changes, so the engine keeps the
+// instance, and the person's typed text in it, across every redraw.
+const CLIENT_KEY = 'grilling-pane:client'
 const COMMAND = 'grilling-pane'
 const STORE_KEY = 'wantsOpen'
 
@@ -58,6 +62,13 @@ type State = {
   isOpen: boolean
   wantsOpen: boolean
   open: OpenQuestion[]
+  // Every question the transcript asked, for the desktop pane (see `historyOf`).
+  history: HistoryEntry[]
+  // What the desktop pane sent for a question, by identity, until the transcript shows the
+  // answer line. Each identity here is in `submitted` too.
+  sentAnswers: Map<string, string>
+  // A model turn is running: between `turn.start` and `turn.complete`.
+  isBusy: boolean
   // A question's pick, by identity: an option's index, or `'discuss'` for the pane's own extra
   // option (see `discussBoxOf`) — never a value the model wrote.
   picks: Map<string, number | 'discuss'>
@@ -152,7 +163,12 @@ async function reparse(state: State): Promise<void> {
   const host = state.host
   if (host === null) return
   try {
-    state.open = openQuestionsOf(await host.messages())
+    const messages = await host.messages()
+    state.open = openQuestionsOf(messages)
+    state.history = historyOf(messages)
+    for (const entry of state.history) {
+      if (entry.status !== 'open') state.sentAnswers.delete(identityOf(entry.question))
+    }
     const openIdentities = new Set(state.open.map((oq) => identityOf(oq.question)))
     for (const identity of state.picks.keys()) {
       if (!openIdentities.has(identity)) state.picks.delete(identity)
@@ -438,12 +454,105 @@ function paneOf(ui: Ui, state: State, host: Host, bodyColumns: number, bodyRows:
   })
 }
 
+// The desktop pane. A press there sends one answer at once, so each answer starts a model turn,
+// and the next round can follow up on it while the person answers other questions.
+//
+// The pane is one `Client` (pane-client.ts) under one key. The engine keeps a `Client`'s
+// instance and its local state across redraws. That is where the typed text of a comment field
+// lives, so a new round or another answer does not clear it, and the drawing changes in place.
+type DesktopUi = Pick<Elements['desktop'], 'Client'>
+
+// `key` is the question's number, with a suffix for a second question under the same number, so
+// it stays the same for one question in every redraw.
+function clientPropsOf(state: State): PaneClientProps {
+  const seen = new Map<number, number>()
+  const entries = state.history.map((entry): PaneClientEntry => {
+    const { question } = entry
+    const identity = identityOf(question)
+    const count = seen.get(question.number) ?? 0
+    seen.set(question.number, count + 1)
+    const sent = entry.status === 'open' ? state.sentAnswers.get(identity) : undefined
+    const status = sent !== undefined ? 'sent' : entry.status
+    const answer = sent ?? entry.answer
+    return {
+      id: identity,
+      key: count === 0 ? `q${question.number}` : `q${question.number}.${count}`,
+      number: question.number,
+      text: question.text,
+      options: question.options.map((option) => (option.reason === undefined ? { label: option.label } : { label: option.label, reason: option.reason })),
+      status,
+      ...(answer !== undefined ? { answer } : {}),
+      ...(entry.reason !== undefined ? { reason: entry.reason } : {}),
+      isDuplicate: entry.isDuplicate,
+    }
+  })
+  return { entries, isBusy: state.isBusy }
+}
+
+function desktopPaneOf(ui: DesktopUi, state: State): RenderElement {
+  const { Client } = ui
+  return Client({ key: CLIENT_KEY, module: './pane-client.ts', props: clientPropsOf(state), flexGrow: 1 })
+}
+
+// What a post from the `Client` carries, checked here: it came from code, so it is `unknown`.
+function answersOfPost(data: unknown): { id: string; pick: number | 'discuss'; comment: string }[] {
+  if (typeof data !== 'object' || data === null) return []
+  const answers = (data as { answers?: unknown }).answers
+  if (!Array.isArray(answers)) return []
+  const valid: { id: string; pick: number | 'discuss'; comment: string }[] = []
+  for (const answer of answers as unknown[]) {
+    if (typeof answer !== 'object' || answer === null) continue
+    const { id, pick, comment } = answer as { id?: unknown; pick?: unknown; comment?: unknown }
+    if (typeof id !== 'string') continue
+    if (pick !== 'discuss' && !(typeof pick === 'number' && Number.isInteger(pick) && pick >= 0)) continue
+    valid.push({ id, pick, comment: typeof comment === 'string' ? comment : '' })
+  }
+  return valid
+}
+
+// Sends each posted answer that is for an open question and was not sent yet, as one prompt each.
+// The prompt names the questions still open after it, so the model keeps them open. A drop puts
+// the question back to open, and the status line says why.
+function sendOne(state: State, host: Host, answer: { id: string; pick: number | 'discuss'; comment: string }): void {
+  const visible = visibleOf(state)
+  const target = visible.find((oq) => identityOf(oq.question) === answer.id)
+  if (target === undefined) return
+  const question = target.question
+  if (typeof answer.pick === 'number' && question.options[answer.pick] === undefined) return
+  const stillOpen = visible.filter((oq) => oq !== target).map((oq) => oq.question)
+  const text = oneAnswerTextOf(question, answer.pick, answer.comment, stillOpen)
+  // The text after the arrow, as the transcript will show it.
+  const line = text.split('\n')[1] ?? ''
+  const arrow = line.indexOf(' → ')
+  state.submitted.add(answer.id)
+  state.sentAnswers.set(answer.id, arrow < 0 ? line : line.slice(arrow + 3))
+  updateStatus(state)
+  host
+    .submit(text)
+    .then((result) => {
+      if (result.drop === undefined) return
+      state.submitted.delete(answer.id)
+      state.sentAnswers.delete(answer.id)
+      host.status(`grilling-pane: the answer to Q${question.number} was not sent: ${result.drop}`)
+      host.invalidate()
+    })
+    .catch((error: unknown) => {
+      state.submitted.delete(answer.id)
+      state.sentAnswers.delete(answer.id)
+      host.log(`grilling-pane: submit failed: ${messageOf(error)}`)
+      host.invalidate()
+    })
+}
+
 export function register(on: On) {
   const state: State = {
     host: null,
     isOpen: false,
     wantsOpen: false,
     open: [],
+    history: [],
+    sentAnswers: new Map(),
+    isBusy: false,
     picks: new Map(),
     comments: new Map(),
     commentEnters: new Map(),
@@ -465,9 +574,24 @@ export function register(on: On) {
     return next(e)
   })
 
+  on('turn.start', ($, e, next) => {
+    state.isBusy = true
+    state.host?.invalidate()
+    return next(e)
+  })
+
   on('turn.complete', ($, e, next) => {
+    state.isBusy = false
     void reparse(state)
     return next(e)
+  })
+
+  on('ui.message', async ($, e, next) => {
+    const host = state.host
+    if (e.requestId !== PANE_ID || e.element !== CLIENT_KEY || host === null) return next(e)
+    for (const answer of answersOfPost(e.data)) sendOne(state, host, answer)
+    // The new props reach the instance at once, without a `ui.render` run.
+    return { props: clientPropsOf(state) }
   })
 
   on('command.run', { command: COMMAND }, async ($, e, next) => {
@@ -528,7 +652,11 @@ export function register(on: On) {
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId !== PANE_ID || state.host === null) return next(e)
-    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
+    if (e.surface === 'desktop') {
+      const { Client } = await $.ui.resolve(e)
+      return desktopPaneOf({ Client }, state)
+    }
+    if (e.surface !== 'terminal') return next(e)
     const { Box, Button, Input, Text } = await $.ui.resolve(e)
     return paneOf({ Box, Button, Input, Text }, state, state.host, e.props.bodyColumns, e.props.scroll.bodyRows)
   })
