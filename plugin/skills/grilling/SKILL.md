@@ -29,10 +29,13 @@ Q14: Does an entry expire by time, or on write?
 
    - Write one `Q<n>: <question>` line, then its options as `- ` lines, two or more.
    - Number questions in one sequence for the conversation. Start after the transcript's last number. Never
-     reuse a number, except to carry a still-open question forward unchanged after a typed reply.
+     reuse a number, except to carry a still-open question forward unchanged after a typed reply or a
+     one-answer prompt from the desktop.
    - Mark the recommended option with `(recommended: <reason>)`, replacing the upstream `grilling` skill's own `➡️` line.
    - Write options that exclude each other, as a short phrase. Add no "other" option.
    - Put the plan summary and any longer explanation in plain text before the block.
+   - When an answer makes a still-open question unnecessary, write `Drop Q<n>: <reason>` in the block
+     instead of that question. The pane shows a dropped question in grey, and the person cannot answer it.
 4. Ask the whole frontier in one round. Do this even if the upstream `grilling` skill's copy says to
    ask one question at a time (a version older than v1.2.0). The pane already gives each question fixed options.
 5. A prompt that starts with `Answers (grilling-pane):` carries one round's answers, one
@@ -46,6 +49,13 @@ Q14: Does an entry expire by time, or on write?
      has in mind. Keep the question open, and re-ask it in a later block once you have discussed it.
    - `(discuss) <comment>` carries the person's own words after the marker. Read the comment as
      what the person has in mind, and reply to it first. Ask again only for what it leaves open.
+   - On the desktop, each press sends one answer at once. That prompt has one answer line and then a
+     `Still open (grilling-pane): Q<n>, ...` line. The questions on that line are not skipped. Keep this
+     turn short: say in one or two sentences what the answer changes, then write a block. In the block,
+     carry each still-open question forward with the same number and text, add the follow-up questions
+     that the answer opens under new numbers, and write a `Drop` line for each still-open question that
+     the answer made unnecessary. The person can answer other questions while you write; their answers
+     come as more prompts of the same form.
    - A typed, plain-text reply answers only the questions it names; every other question of that round
      stays open, answered later in plain text too. Carry each still-open question into the next round
      with the same number and text. This is the one case a number repeats, and it lets the pane's
