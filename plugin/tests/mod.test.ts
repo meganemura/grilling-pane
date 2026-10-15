@@ -632,3 +632,45 @@ describe('mod', () => {
     expect(kept.submittedContexts.at(-1)).toBeUndefined()
   })
 })
+
+// Claude Code Desktop draws the pane too. The same session, driven on the desktop surface, must
+// draw the same tree and send the same answers as on the terminal.
+const DESKTOP_PANE: RenderInput<'Pane'> = { ...PANE, surface: 'desktop' }
+
+// A drawn tree as JSON, less each element's `press` handle: the engine numbers handles per
+// render, so two renders of one tree differ there and nowhere else.
+function shapeOf(tree: unknown): string {
+  return JSON.stringify(tree, (key, value: unknown) => (key === 'press' ? undefined : value))
+}
+
+describe('mod on the desktop surface', () => {
+  test('the desktop draws the same tree as the terminal, the comment field included', async ($, on) => {
+    world(on, { messages: [TWO_QUESTIONS] })
+    await $.session.start(SESSION)
+    await $.command.run(RUN)
+    await $.ui.render(PANE)
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:discuss:button' })
+    await settle()
+
+    const terminal = await $.ui.render(PANE)
+    const desktop = await $.ui.render(DESKTOP_PANE)
+    expect(inputsOf(desktop)).toEqual([{ key: 'q0:discuss:comment:0', value: '' }])
+    expect(shapeOf(desktop)).toBe(shapeOf(terminal))
+  })
+
+  test('picking one option and pressing Submit on the desktop sends the expected text', async ($, on) => {
+    const kept = world(on, { messages: [TWO_QUESTIONS] })
+    await $.session.start({ ...SESSION, surface: 'desktop' })
+    await $.command.run(RUN)
+    await $.ui.render(DESKTOP_PANE)
+
+    await $.ui.press({ plugin: PLUGIN, key: 'q0:o0:button' })
+    await $.ui.press({ plugin: PLUGIN, key: 'submit:top:button' })
+    await settle()
+
+    expect(kept.submittedTexts.at(-1)).toBe(
+      ['Answers (grilling-pane):', 'Q1 cache is per user, or one for all? → per user', 'Q2 配信は週次か日次か? → (skipped)'].join('\n'),
+    )
+    expect(textOf(await $.ui.render(DESKTOP_PANE))).toBe('no open questions')
+  })
+})

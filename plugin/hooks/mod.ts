@@ -211,7 +211,11 @@ async function submit(state: State, host: Host): Promise<void> {
 // options are invisible until it has focus, and the test kit has no way to pick from one
 // (`$.ui.select` does not exist; `$.ui.press` refuses a Select's key). A radio built from
 // `Button` is visible and pickable in both.
-type Ui = Pick<Elements['terminal'], 'Box' | 'Button' | 'Input' | 'Text'>
+//
+// The pane draws on the two surfaces whose table has all four elements: the terminal and Claude
+// Code Desktop. The mobile app has no `Input`, so there the engine draws its own pane body.
+type DrawnSurface = 'terminal' | 'desktop'
+type Ui = Pick<Elements[DrawnSurface], 'Box' | 'Button' | 'Input' | 'Text'>
 
 // `(*)`/`( )` and not a Unicode radio glyph: some terminal fonts draw a symbol glyph two cells
 // wide, which pushes the label after it out of line. ASCII draws one cell wide in every font.
@@ -524,7 +528,7 @@ export function register(on: On) {
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId !== PANE_ID || state.host === null) return next(e)
-    if (e.surface !== 'terminal') return next(e)
+    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     const { Box, Button, Input, Text } = await $.ui.resolve(e)
     return paneOf({ Box, Button, Input, Text }, state, state.host, e.props.bodyColumns, e.props.scroll.bodyRows)
   })
