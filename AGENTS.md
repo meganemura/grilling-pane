@@ -27,7 +27,10 @@ dependency.
 ## Visibility
 
 The repository is public. Commit messages, comments, README and docs are
-in English. Follow ASD-STE100 Simplified Technical English. Test fixtures
+in English. Follow ASD-STE100 Simplified Technical English. `README.ja.md`
+is the one Japanese file: a copy of `README.md` for Japanese readers. Change
+the two together, and keep the `[Japanese](README.ja.md)` link at the end of
+`README.md`. Test fixtures
 use invented plans and questions, never a real project's.
 
 ## Rules
