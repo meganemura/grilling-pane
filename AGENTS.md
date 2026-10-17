@@ -9,7 +9,7 @@ grilling-pane, a Claude Code plugin with two parts. Its skill,
 mattpocock/skills to interview the person about a plan. It sets one part
 of the upstream skill's method: each round's questions go in a block,
 with fixed options, that the pane can read. A
-hooks module (a "Claude Mod") reads that block from the transcript. It
+hooks module (a mod) reads that block from the transcript. It
 draws every open question in a pane beside the transcript, as a radio made
 of one button per option. It submits all answers as one prompt. A
 question the person did not answer is submitted as skipped.
@@ -35,8 +35,10 @@ use invented plans and questions, never a real project's.
 
 ## Rules
 
-- Function hooks are early access. The module loads only where
-  `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is set. The API can change between
+- Mods are early access. Claude Code 2.1.287 and later load them by
+  default; CI pins 2.1.280, where the module loads only with
+  `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`, so the CI and test commands set
+  it. The API can change between
   releases. The types come from `/plugin-types`, which writes
   `.claude/types/claude-code.d.ts` at the repository root; that directory is
   gitignored, so run `/plugin-types` once in a new checkout.

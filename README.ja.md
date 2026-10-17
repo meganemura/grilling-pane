@@ -4,7 +4,7 @@
 
 [![test](https://github.com/meganemura/grilling-pane/actions/workflows/test.yml/badge.svg)](https://github.com/meganemura/grilling-pane/actions/workflows/test.yml)
 
-grilling-pane は、Claude が計画に取りかかる前に、その計画について人に質問する Claude Code の plugin（Claude Mod）である。
+grilling-pane は、Claude が計画に取りかかる前に、その計画について人に質問する Claude Code の plugin（mod）である。
 plugin の skill `grilling-pane:grilling` は、質問の進め方として Matt Pocock の `grilling` skill を呼び出す。
 skill は各ラウンドの質問を 1 つの block に書き、grilling-pane はその block を transcript の横の pane に描く。
 1 回の Submit で、ラウンド全体への回答を 1 ターンで送る。
@@ -33,7 +33,7 @@ Q5 What does one lookup ask for?
 
 ## 必要なもの
 
-- Claude Code 2.1.280 以降と、`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`
+- Claude Code 2.1.280 以降。Claude Code 2.1.287 以降は mod を標準で読み込む。それより古い版では `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` を設定する。
 - terminal のセッション、または Claude Code Desktop の Code タブ。print mode（`-p`）には pane がない。
 - mattpocock/skills の upstream `grilling` skill（v1.2.0 以降）:
   `gh skill install mattpocock/skills grilling --agent claude-code`
@@ -48,17 +48,7 @@ claude plugin install grilling-pane@grilling-pane
 checkout を使って開発するときは、作業ツリーから plugin を読み込む。
 
 ```sh
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir /path/to/grilling-pane/plugin
-```
-
-`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` を毎回のセッションで有効にするには、`settings.json` の `env` に加える。
-
-```json
-{
-  "env": {
-    "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1"
-  }
-}
+claude --plugin-dir /path/to/grilling-pane/plugin
 ```
 
 ### Claude Code Desktop
