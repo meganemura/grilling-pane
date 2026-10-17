@@ -61,7 +61,7 @@ use invented plans and questions, never a real project's.
   parser and the answer formatter are plain functions with their own tests.
 - Quality gates: `claude plugin validate plugin`, `npx -p typescript tsc -p
   plugin/hooks`, and the plugin tests. Run all three before a commit.
-- Development loop: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir
+- Development loop: `claude --plugin-dir
   "$PWD/plugin"` in a real terminal. `-p` has no pane surface. Hook failures
   are fail-open and appear only in `~/.claude/debug/<session>.txt`.
 - Design decisions go to `docs/decisions/` as short numbered notes
